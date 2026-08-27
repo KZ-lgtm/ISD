@@ -77,20 +77,41 @@
     arc: { label: 'Arc', color: '#68d391', points: arcPoints }
   };
 
+  var CONTOUR_PATH_COLOR = '#63b3ed';
+
   function tileAbsolutePoints(tile) {
+    if (tile.preset === 'contour') return tile.points;
     var preset = PATH_PRESETS[tile.preset];
     return preset.points.map(function (p) { return { x: tile.x + p[0], y: tile.y + p[1] }; });
   }
 
+  function tileColor(tile) {
+    return tile.preset === 'contour' ? CONTOUR_PATH_COLOR : PATH_PRESETS[tile.preset].color;
+  }
+
+  function tileIsClosedLoop(tile) {
+    return tile.preset === 'contour';
+  }
+
+  function sampleContourPoints(points, count) {
+    if (!points || points.length === 0) return [];
+    count = Math.max(1, Math.min(count, points.length));
+    if (count >= points.length) return points.slice();
+    var result = [];
+    var step = points.length / count;
+    for (var i = 0; i < count; i++) result.push(points[Math.floor(i * step)]);
+    return result;
+  }
+
   function drawTilePath(ctx, tile, colorOverride) {
-    var preset = PATH_PRESETS[tile.preset];
-    var color = colorOverride || preset.color;
+    var color = colorOverride || tileColor(tile);
     var pts = tileAbsolutePoints(tile);
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
     ctx.lineWidth = 3;
     ctx.beginPath();
     pts.forEach(function (p, idx) { if (idx === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
+    if (tileIsClosedLoop(tile)) ctx.closePath();
     ctx.stroke();
     pts.forEach(function (p) {
       ctx.beginPath();
@@ -100,8 +121,7 @@
   }
 
   function drawTransformedTilePath(ctx, tile, transform, colorOverride) {
-    var preset = PATH_PRESETS[tile.preset];
-    var color = colorOverride || preset.color;
+    var color = colorOverride || tileColor(tile);
     var rad = transform.thetaDeg * Math.PI / 180;
     var a = Math.cos(rad), b = Math.sin(rad);
     var pts = tileAbsolutePoints(tile).map(function (p) {
@@ -112,6 +132,7 @@
     ctx.lineWidth = 3;
     ctx.beginPath();
     pts.forEach(function (p, idx) { if (idx === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
+    if (tileIsClosedLoop(tile)) ctx.closePath();
     ctx.stroke();
     pts.forEach(function (p) {
       ctx.beginPath();
@@ -175,12 +196,15 @@
     return { x: x, y: y, w: w, h: h };
   }
 
+  /** Draws the fr crop at its native pixel size (no scaling, no aspect-ratio change), centered in previewCanvas. Returns the {dx,dy} offset used, so callers can align overlays in the same coordinate space, or null if nothing was drawn. */
   function drawCropToPreview(sourceCanvasOrImg, fr, previewCanvas) {
     var pctx = previewCanvas.getContext('2d');
     pctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
-    if (!fr || fr.w < 2 || fr.h < 2) return;
-    pctx.imageSmoothingEnabled = false;
-    pctx.drawImage(sourceCanvasOrImg, fr.x, fr.y, fr.w, fr.h, 0, 0, previewCanvas.width, previewCanvas.height);
+    if (!fr || fr.w < 2 || fr.h < 2) return null;
+    var dx = (previewCanvas.width - fr.w) / 2;
+    var dy = (previewCanvas.height - fr.h) / 2;
+    pctx.drawImage(sourceCanvasOrImg, fr.x, fr.y, fr.w, fr.h, dx, dy, fr.w, fr.h);
+    return { dx: dx, dy: dy };
   }
 
   // ---------- recipe storage ----------
@@ -288,10 +312,33 @@
     combineFeatureRegion = null;
     combineContourData = [];
     combineSelectedContourIndex = -1;
-    drawCropToPreview(combineRefCanvas, null, combineFeaturePreview);
+    combineRenderFeaturePreview();
     setStatus(combineFeatureStatus, 'No feature region selected');
     renderCombineContourList();
     if (msg) setStatus(combineStatus, msg);
+  }
+
+  /** Draws the current feature-region crop at native size, plus the auto-generated contour path (if any) overlaid in the same coordinate space. */
+  function combineRenderFeaturePreview() {
+    var offset = drawCropToPreview(combineRefCanvas, combineFeatureRegion, combineFeaturePreview);
+    if (!offset || !combineFeatureRegion) return;
+    var contourTile = combineTiles.filter(function (t) { return t.preset === 'contour'; })[0];
+    if (!contourTile) return;
+    var fr = combineFeatureRegion;
+    var pctx = combineFeaturePreview.getContext('2d');
+    var pts = contourTile.points.map(function (p) { return { x: p.x - fr.x + offset.dx, y: p.y - fr.y + offset.dy }; });
+    pctx.strokeStyle = CONTOUR_PATH_COLOR;
+    pctx.fillStyle = CONTOUR_PATH_COLOR;
+    pctx.lineWidth = 2.5;
+    pctx.beginPath();
+    pts.forEach(function (p, idx) { if (idx === 0) pctx.moveTo(p.x, p.y); else pctx.lineTo(p.x, p.y); });
+    pctx.closePath();
+    pctx.stroke();
+    pts.forEach(function (p) {
+      pctx.beginPath();
+      pctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      pctx.fill();
+    });
   }
 
   Object.keys(PATH_PRESETS).forEach(function (key) {
@@ -347,8 +394,9 @@
       if (rect.w > 8 && rect.h > 8) {
         combineFeatureRegion = rect;
         combineSelectedContourIndex = -1;
+        combineTiles = combineTiles.filter(function (t) { return t.preset !== 'contour'; });
         renderCombineContourList();
-        drawCropToPreview(combineRefCanvas, combineFeatureRegion, combineFeaturePreview);
+        combineRenderFeaturePreview();
         setStatus(combineFeatureStatus, 'Feature region set (' + Math.round(rect.w) + '×' + Math.round(rect.h) + ' px)');
         setStatus(combineStatus, 'Feature region saved.', 'ok');
       } else {
@@ -373,8 +421,9 @@
   clearFeatureBtn.addEventListener('click', function () {
     combineFeatureRegion = null;
     combineSelectedContourIndex = -1;
+    combineTiles = combineTiles.filter(function (t) { return t.preset !== 'contour'; });
     renderCombineContourList();
-    drawCropToPreview(combineRefCanvas, null, combineFeaturePreview);
+    combineRenderFeaturePreview();
     setStatus(combineFeatureStatus, 'No feature region selected');
     renderCombineCanvas();
   });
@@ -384,8 +433,10 @@
     if (!c) return;
     combineSelectedContourIndex = index;
     combineFeatureRegion = { x: c.rect.x, y: c.rect.y, w: c.rect.w, h: c.rect.h };
-    drawCropToPreview(combineRefCanvas, combineFeatureRegion, combineFeaturePreview);
-    setStatus(combineFeatureStatus, 'Feature region set from contour #' + index + ' (' + Math.round(c.rect.w) + '×' + Math.round(c.rect.h) + ' px)');
+    combineTiles = combineTiles.filter(function (t) { return t.preset !== 'contour'; });
+    combineTiles.push({ preset: 'contour', points: sampleContourPoints(c.points, 16) });
+    combineRenderFeaturePreview();
+    setStatus(combineFeatureStatus, 'Feature region + auto-generated path from contour #' + index + ' (' + Math.round(c.rect.w) + '×' + Math.round(c.rect.h) + ' px)');
     renderCombineContourList();
     renderCombineCanvas();
   }
@@ -509,9 +560,10 @@
       combineRefCanvas.getContext('2d').drawImage(img, 0, 0, W, H);
       renderCombineCanvas();
       if (combineFeatureRegion) {
-        drawCropToPreview(combineRefCanvas, combineFeatureRegion, combineFeaturePreview);
+        combineRenderFeaturePreview();
         setStatus(combineFeatureStatus, 'Feature region set (' + Math.round(combineFeatureRegion.w) + '×' + Math.round(combineFeatureRegion.h) + ' px)');
       } else {
+        combineRenderFeaturePreview();
         setStatus(combineFeatureStatus, 'No feature region selected');
       }
     };
@@ -544,6 +596,30 @@
     drawFeatureRect(preRunRecipeCtx, preRunRecipe.featureRegion, '#f6ad55');
   }
 
+  /** Draws the recipe's feature-region crop at native size, plus its saved contour path (if any) overlaid in the same coordinate space. */
+  function preRunRenderFeaturePreview() {
+    if (!preRunRecipe) { drawCropToPreview(null, null, preRunFeaturePreview); return; }
+    var offset = drawCropToPreview(preRunRecipe.imageObj, preRunRecipe.featureRegion, preRunFeaturePreview);
+    if (!offset || !preRunRecipe.featureRegion) return;
+    var contourTile = preRunRecipe.tiles.filter(function (t) { return t.preset === 'contour'; })[0];
+    if (!contourTile) return;
+    var fr = preRunRecipe.featureRegion;
+    var pctx = preRunFeaturePreview.getContext('2d');
+    var pts = contourTile.points.map(function (p) { return { x: p.x - fr.x + offset.dx, y: p.y - fr.y + offset.dy }; });
+    pctx.strokeStyle = CONTOUR_PATH_COLOR;
+    pctx.fillStyle = CONTOUR_PATH_COLOR;
+    pctx.lineWidth = 2.5;
+    pctx.beginPath();
+    pts.forEach(function (p, idx) { if (idx === 0) pctx.moveTo(p.x, p.y); else pctx.lineTo(p.x, p.y); });
+    pctx.closePath();
+    pctx.stroke();
+    pts.forEach(function (p) {
+      pctx.beginPath();
+      pctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      pctx.fill();
+    });
+  }
+
   preRunLoadRecipeBtn.addEventListener('click', function () {
     var name = preRunRecipeSelect.value;
     var recipes = loadRecipes();
@@ -554,10 +630,10 @@
       preRunRecipe = { imageObj: img, featureRegion: data.featureRegion || null, tiles: (data.tiles || []).slice() };
       renderPreRunRecipeCanvas();
       if (preRunRecipe.featureRegion) {
-        drawCropToPreview(img, preRunRecipe.featureRegion, preRunFeaturePreview);
+        preRunRenderFeaturePreview();
         setStatus(preRunFeatureStatus, 'Recipe "' + name + '" loaded');
       } else {
-        drawCropToPreview(img, null, preRunFeaturePreview);
+        preRunRenderFeaturePreview();
         setStatus(preRunFeatureStatus, 'Recipe has no feature region - matching will fail');
       }
       setStatus(matchStatus, 'Recipe loaded. Generate or upload a current photo, then run the match.');
