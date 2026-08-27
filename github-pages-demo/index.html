@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intelligent Spray — Interactive Demo</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="hero">
+  <h1>Intelligent Spray — Interactive Demo</h1>
+  <p>
+    A hands-on, browser-only reproduction of the "Combine" and "Pre-run" steps from a real
+    manufacturing-execution-system feature that guides a spray-painting robot: build a reusable
+    recipe (image + path + a trackable feature), then simulate a workpiece that has shifted and
+    watch real computer vision measure the deviation and correct the path.
+  </p>
+  <span class="badge">Runs 100% locally in your browser — no server, no upload</span>
+</header>
+
+<main>
+
+  <section class="step-card">
+    <h2><span class="num">1</span> Combine — Build a Recipe</h2>
+    <p class="hint">
+      Drag a spray-path preset onto the reference photo, then mark a small, distinctive area as the
+      "feature region" — the patch of the image the vision system will later search for. Save the
+      result as a named recipe.
+    </p>
+    <div class="row">
+      <div class="canvas-wrap">
+        <canvas id="combineCanvas" width="560" height="360"></canvas>
+      </div>
+      <div class="controls">
+        <div class="control-group">
+          <label>1. Place a path preset (click a preset, then click on the photo)</label>
+          <div class="btn-row" id="presetButtons"></div>
+        </div>
+        <div class="control-group">
+          <label>2. Mark the feature region</label>
+          <div class="btn-row">
+            <button id="drawFeatureBtn">Draw feature region</button>
+            <button id="clearFeatureBtn" class="secondary">Clear</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>Feature region preview</label>
+          <div class="feature-preview-wrap">
+            <canvas id="combineFeaturePreview" width="140" height="100" class="preview-small"></canvas>
+            <span id="combineFeatureStatus">No feature region selected</span>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>3. Save / load recipe</label>
+          <div class="btn-row">
+            <input type="text" id="recipeNameInput" placeholder="Recipe name" style="flex:1;min-width:120px;">
+            <button id="saveRecipeBtn" class="primary">Save recipe</button>
+          </div>
+          <div class="btn-row" style="margin-top:8px;">
+            <select id="combineRecipeSelect" style="flex:1;"></select>
+            <button id="combineLoadRecipeBtn">Load</button>
+            <button id="combineDeleteRecipeBtn" class="warn">Delete</button>
+          </div>
+        </div>
+        <div id="combineStatus" class="status-line"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="step-card">
+    <h2><span class="num">2</span> Pre-run — Match &amp; Correct</h2>
+    <p class="hint">
+      Load a saved recipe, then either generate a simulated "current photo" (the workpiece nudged by
+      a known amount, so you can check the math) or upload your own photo. Run the match to detect
+      real ORB features, filter them with a RANSAC-fit rigid transform, and apply the measured
+      deviation to the saved path.
+    </p>
+
+    <div class="row">
+      <div>
+        <div class="canvas-wrap">
+          <canvas id="preRunRecipeCanvas" width="560" height="360"></canvas>
+        </div>
+        <div class="feature-preview-wrap" style="margin-top:10px;">
+          <canvas id="preRunFeaturePreview" width="140" height="100" class="preview-small"></canvas>
+          <span id="preRunFeatureStatus">No recipe loaded</span>
+        </div>
+      </div>
+      <div class="controls">
+        <div class="control-group">
+          <label>Recipe</label>
+          <div class="btn-row">
+            <select id="preRunRecipeSelect" style="flex:1;"></select>
+            <button id="preRunLoadRecipeBtn">Load</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>Simulated workpiece shift (ground truth — hidden until you reveal it)</label>
+          <label style="margin-top:6px;">X shift: <span id="simShiftXVal">0</span> px</label>
+          <input type="range" id="simShiftX" min="-80" max="80" value="0">
+          <label>Y shift: <span id="simShiftYVal">0</span> px</label>
+          <input type="range" id="simShiftY" min="-60" max="60" value="0">
+          <label>Rotation: <span id="simRotateVal">0</span> deg</label>
+          <input type="range" id="simRotate" min="-45" max="45" value="0">
+          <div class="btn-row" style="margin-top:8px;">
+            <button id="randomizeShiftBtn">Randomize</button>
+            <button id="generateCurrentBtn" class="primary">Generate current photo</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>...or use a real photo instead</label>
+          <input type="file" id="uploadCurrentInput" accept="image/*">
+        </div>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:16px;">
+      <div class="canvas-wrap">
+        <canvas id="preRunCurrentCanvas" width="560" height="360"></canvas>
+      </div>
+      <div class="controls">
+        <div class="control-group">
+          <div class="btn-row">
+            <button id="matchBtn" class="primary">Run pattern match</button>
+            <button id="confirmPathBtn" class="secondary">Confirm path (skip match)</button>
+          </div>
+        </div>
+        <div class="control-group" id="matchResultBox" style="display:none;">
+          <label>Match result</label>
+          <div class="match-result-grid">
+            <span class="k">Detected shift X</span><span class="v" id="resultDx">-</span>
+            <span class="k">Detected shift Y</span><span class="v" id="resultDy">-</span>
+            <span class="k">Detected rotation</span><span class="v" id="resultTheta">-</span>
+            <span class="k">Inliers / matches</span><span class="v" id="resultInliers">-</span>
+            <span class="k">Confidence score</span><span class="v" id="resultScore">-</span>
+          </div>
+          <div class="btn-row" style="margin-top:10px;">
+            <button id="revealGroundTruthBtn" class="secondary">Reveal actual shift</button>
+          </div>
+          <div id="groundTruthBox" class="status-line" style="display:none; margin-top:8px;"></div>
+        </div>
+        <div id="matchStatus" class="status-line">Load a recipe, generate or upload a current photo, then run the match.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="step-card">
+    <h2><span class="num">3</span> Corrected Path</h2>
+    <p class="hint">The measured (or confirmed) path drawn directly over the current photo — exactly what the real system hands off to the robot simulator before any motion happens.</p>
+    <div class="canvas-wrap">
+      <canvas id="resultCanvas" width="560" height="360"></canvas>
+    </div>
+  </section>
+
+  <section class="step-card">
+    <h2>How this demo is built</h2>
+    <p class="hint" style="margin-bottom:0;">
+      This page runs real <strong>ORB feature detection + BFMatcher</strong> (via OpenCV.js/WebAssembly,
+      compiled to run entirely client-side) and a hand-written <strong>RANSAC-fit rigid transform</strong>
+      to estimate translation and rotation between two images — the same class of algorithm the production
+      system runs server-side in C# against a live ABB robot and a Hikrobot GigE camera. Nothing here is
+      faked or pre-recorded: the images are drawn live on &lt;canvas&gt;, and every match runs fresh in
+      your browser. The full production system additionally drives real robot motion (RAPID variable
+      writes with mastership handling and read-back verification), which this static demo intentionally
+      leaves out.
+    </p>
+  </section>
+
+</main>
+
+<footer>
+  Intelligent Spray demo &middot; runs entirely client-side, no data leaves your browser
+</footer>
+
+<script src="lib/opencv/opencv.js"></script>
+<script src="js/demo.js"></script>
+</body>
+</html>
