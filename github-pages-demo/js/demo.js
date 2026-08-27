@@ -245,7 +245,6 @@
   var combineCtx = combineCanvas.getContext('2d');
   var combineFeaturePreview = document.getElementById('combineFeaturePreview');
   var combineFeatureStatus = document.getElementById('combineFeatureStatus');
-  var presetButtons = document.getElementById('presetButtons');
   var drawFeatureBtn = document.getElementById('drawFeatureBtn');
   var clearFeatureBtn = document.getElementById('clearFeatureBtn');
   var combineImageUpload = document.getElementById('combineImageUpload');
@@ -303,7 +302,6 @@
   var combineSelectingFeature = false;
   var combineDragStart = null;
   var combineDragCurrent = null;
-  var combinePendingPreset = null;
   var combineContourData = []; // [{ points:[{x,y}], area, rect:{x,y,w,h} }], largest first
   var combineSelectedContourIndex = -1;
 
@@ -340,19 +338,6 @@
       pctx.fill();
     });
   }
-
-  Object.keys(PATH_PRESETS).forEach(function (key) {
-    var btn = document.createElement('button');
-    btn.className = 'tile-preset-btn';
-    btn.textContent = PATH_PRESETS[key].label;
-    btn.addEventListener('click', function () {
-      combinePendingPreset = (combinePendingPreset === key) ? null : key;
-      Array.prototype.forEach.call(presetButtons.children, function (c) { c.classList.remove('active'); });
-      if (combinePendingPreset) btn.classList.add('active');
-      setStatus(combineStatus, combinePendingPreset ? ('Click on the photo to place the "' + PATH_PRESETS[key].label + '" path.') : 'Selection cleared.');
-    });
-    presetButtons.appendChild(btn);
-  });
 
   function renderCombineCanvas() {
     combineCtx.clearRect(0, 0, W, H);
@@ -402,14 +387,6 @@
       } else {
         setStatus(combineStatus, 'Region too small, try again.', 'err');
       }
-      renderCombineCanvas();
-      return;
-    }
-    if (combinePendingPreset) {
-      combineTiles.push({ preset: combinePendingPreset, x: pt.x, y: pt.y });
-      setStatus(combineStatus, 'Placed "' + PATH_PRESETS[combinePendingPreset].label + '" path. Click another preset to add more, or save the recipe.', 'ok');
-      combinePendingPreset = null;
-      Array.prototype.forEach.call(presetButtons.children, function (c) { c.classList.remove('active'); });
       renderCombineCanvas();
     }
   });

@@ -160,9 +160,6 @@ footer {
 }
 footer a { color: var(--accent); }
 
-.tile-preset-btn { display: flex; align-items: center; gap: 6px; }
-.tile-preset-btn.active { background: var(--accent); color: #0a1018; border-color: var(--accent); }
-
 .tag { display: inline-block; padding: 2px 7px; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--border); font-size: 0.72rem; color: var(--text-dim); }
 
 ul.contour-list {

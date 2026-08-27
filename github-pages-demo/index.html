@@ -24,13 +24,19 @@
   <section class="step-card">
     <h2><span class="num">1</span> Combine — Build a Recipe</h2>
     <p class="hint">
-      Drag a spray-path preset onto the reference photo, then mark a small, distinctive area as the
-      "feature region" — the patch of the image the vision system will later search for. Save the
-      result as a named recipe.
+      Load a reference photo, then find and select a distinctive contour on it — that becomes both
+      the "feature region" the vision system will later search for, and a spray path auto-generated
+      by tracing the contour's own outline. Save the result as a named recipe.
     </p>
     <div class="row">
-      <div class="canvas-wrap">
-        <canvas id="combineCanvas" width="560" height="360"></canvas>
+      <div>
+        <div class="canvas-wrap">
+          <canvas id="combineCanvas" width="560" height="360"></canvas>
+        </div>
+        <div class="feature-preview-wrap" style="margin-top:10px;">
+          <canvas id="combineFeaturePreview" width="560" height="360"></canvas>
+          <span id="combineFeatureStatus">No feature region selected</span>
+        </div>
       </div>
       <div class="controls">
         <div class="control-group">
@@ -41,11 +47,7 @@
           </div>
         </div>
         <div class="control-group">
-          <label>2. Place a path preset (click a preset, then click on the photo)</label>
-          <div class="btn-row" id="presetButtons"></div>
-        </div>
-        <div class="control-group">
-          <label>3. Mark the feature region</label>
+          <label>2. Mark the feature region</label>
           <div class="btn-row">
             <button id="drawFeatureBtn">Draw feature region</button>
             <button id="clearFeatureBtn" class="secondary">Clear</button>
@@ -59,14 +61,7 @@
           <ul class="contour-list" id="combineContourList"></ul>
         </div>
         <div class="control-group">
-          <label>Feature region preview</label>
-          <div class="feature-preview-wrap">
-            <canvas id="combineFeaturePreview" width="560" height="360"></canvas>
-            <span id="combineFeatureStatus">No feature region selected</span>
-          </div>
-        </div>
-        <div class="control-group">
-          <label>4. Save / load recipe</label>
+          <label>3. Save / load recipe</label>
           <div class="btn-row">
             <input type="text" id="recipeNameInput" placeholder="Recipe name" style="flex:1;min-width:120px;">
             <button id="saveRecipeBtn" class="primary">Save recipe</button>
