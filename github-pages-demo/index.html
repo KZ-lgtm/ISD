@@ -34,15 +34,29 @@
       </div>
       <div class="controls">
         <div class="control-group">
-          <label>1. Place a path preset (click a preset, then click on the photo)</label>
+          <label>1. Load a reference photo</label>
+          <div class="btn-row">
+            <input type="file" id="combineImageUpload" accept="image/*" style="flex:1;min-width:140px;">
+            <button id="resetSyntheticImageBtn" class="secondary">Use sample photo</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>2. Place a path preset (click a preset, then click on the photo)</label>
           <div class="btn-row" id="presetButtons"></div>
         </div>
         <div class="control-group">
-          <label>2. Mark the feature region</label>
+          <label>3. Mark the feature region</label>
           <div class="btn-row">
             <button id="drawFeatureBtn">Draw feature region</button>
             <button id="clearFeatureBtn" class="secondary">Clear</button>
           </div>
+          <p class="hint" style="margin:8px 0 4px;font-size:0.8rem;">...or find one automatically:</p>
+          <label style="margin-top:2px;">Threshold: <span id="combineThresholdVal">100</span></label>
+          <input type="range" id="combineContourThreshold" min="0" max="255" value="100">
+          <div class="btn-row" style="margin-top:6px;">
+            <button id="combineFindContoursBtn">Find contours</button>
+          </div>
+          <ul class="contour-list" id="combineContourList"></ul>
         </div>
         <div class="control-group">
           <label>Feature region preview</label>
@@ -52,7 +66,7 @@
           </div>
         </div>
         <div class="control-group">
-          <label>3. Save / load recipe</label>
+          <label>4. Save / load recipe</label>
           <div class="btn-row">
             <input type="text" id="recipeNameInput" placeholder="Recipe name" style="flex:1;min-width:120px;">
             <button id="saveRecipeBtn" class="primary">Save recipe</button>
