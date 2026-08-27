@@ -47,7 +47,7 @@
   "prerun.xShift": "X shift:",
   "prerun.yShift": "Y shift:",
   "prerun.rotation": "Rotation:",
-  "prerun.generateCurrent": "Generate current photo",
+  "prerun.randomize": "Randomize",
   "prerun.useRealPhoto": "...or use a real photo instead",
   "prerun.runMatch": "Run pattern match",
   "prerun.confirmPath": "Confirm path (skip match)",

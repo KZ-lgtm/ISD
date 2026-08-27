@@ -47,7 +47,7 @@
   "prerun.xShift": "X 偏移：",
   "prerun.yShift": "Y 偏移：",
   "prerun.rotation": "旋轉：",
-  "prerun.generateCurrent": "產生目前照片",
+  "prerun.randomize": "隨機產生",
   "prerun.useRealPhoto": "…或改用實際照片",
   "prerun.runMatch": "執行圖案比對",
   "prerun.confirmPath": "確認路徑（略過比對）",

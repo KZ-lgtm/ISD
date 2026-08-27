@@ -315,7 +315,7 @@
   var simShiftX = document.getElementById('simShiftX'), simShiftXVal = document.getElementById('simShiftXVal');
   var simShiftY = document.getElementById('simShiftY'), simShiftYVal = document.getElementById('simShiftYVal');
   var simRotate = document.getElementById('simRotate'), simRotateVal = document.getElementById('simRotateVal');
-  var generateCurrentBtn = document.getElementById('generateCurrentBtn');
+  var randomizeShiftBtn = document.getElementById('randomizeShiftBtn');
   var uploadCurrentInput = document.getElementById('uploadCurrentInput');
 
   var matchBtn = document.getElementById('matchBtn');
@@ -694,7 +694,15 @@
     setStatus(matchStatus, t('prerun.matchSimGenerated'));
   }
 
-  generateCurrentBtn.addEventListener('click', generateCurrent);
+  randomizeShiftBtn.addEventListener('click', function () {
+    simShiftX.value = Math.round((Math.random() * 2 - 1) * 70);
+    simShiftY.value = Math.round((Math.random() * 2 - 1) * 50);
+    simRotate.value = Math.round((Math.random() * 2 - 1) * 35);
+    simShiftXVal.textContent = simShiftX.value;
+    simShiftYVal.textContent = simShiftY.value;
+    simRotateVal.textContent = simRotate.value;
+    generateCurrent();
+  });
 
   uploadCurrentInput.addEventListener('change', function (evt) {
     var file = evt.target.files && evt.target.files[0];
