@@ -139,6 +139,7 @@
       ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
       ctx.fill();
     });
+    return pts;
   }
 
   function strokeContourPathOn(ctx, points, color, width) {
@@ -301,6 +302,15 @@
 
   var resultCanvas = document.getElementById('resultCanvas');
   var resultCtx = resultCanvas.getContext('2d');
+
+  var simColorInput = document.getElementById('simColorInput');
+  var simTransparencyInput = document.getElementById('simTransparencyInput');
+  var simTransparencyVal = document.getElementById('simTransparencyVal');
+  var simSpeedInput = document.getElementById('simSpeedInput');
+  var simSpeedVal = document.getElementById('simSpeedVal');
+  var simPlayBtn = document.getElementById('simPlayBtn');
+  var simStopBtn = document.getElementById('simStopBtn');
+  var simStatus = document.getElementById('simStatus');
 
   function setStatus(el, msg, cls) {
     el.textContent = msg;
@@ -841,14 +851,126 @@
     }
   }
 
-  function applyMatchToPath(match, statusLabel) {
+  var lastAppliedMatch = null;
+  var lastAppliedStatusLabel = '';
+  var lastAppliedPathPoints = [];
+
+  /** Redraws the current photo + transformed path + label from the last applied match - the "clean" (no spray) view, reused both right after a match/confirm and to reset the trail before each simulation run. */
+  function renderResultBase() {
     resultCtx.clearRect(0, 0, W, H);
     resultCtx.drawImage(preRunRecipeCanvas, 0, 0);
-    preRunRecipe.tiles.forEach(function (tile) { drawTransformedTilePath(resultCtx, tile, match, '#4fd1c5'); });
+    var pts = [];
+    preRunRecipe.tiles.forEach(function (tile) {
+      pts = pts.concat(drawTransformedTilePath(resultCtx, tile, lastAppliedMatch, '#4fd1c5'));
+    });
     resultCtx.fillStyle = '#e6ebf5';
     resultCtx.font = 'bold 13px sans-serif';
-    resultCtx.fillText(statusLabel, 10, 18);
+    resultCtx.fillText(lastAppliedStatusLabel, 10, 18);
+    return pts;
   }
+
+  function applyMatchToPath(match, statusLabel) {
+    stopPathSimulation();
+    lastAppliedMatch = match;
+    lastAppliedStatusLabel = statusLabel;
+    lastAppliedPathPoints = renderResultBase();
+    var enough = lastAppliedPathPoints.length >= 2;
+    simPlayBtn.disabled = !enough;
+    setStatus(simStatus, enough ? 'Ready - press Play to simulate the spray pass.' : 'This path has too few points to simulate.');
+  }
+
+  // ---------- Path Simulation: animate a spray circle along the applied path ----------
+
+  var SPRAY_RADIUS = 14;
+  var simAnimationId = null;
+  var simRunning = false;
+
+  function pointDistance(a, b) {
+    var dx = b.x - a.x, dy = b.y - a.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function pathTotalLength(points) {
+    var total = 0;
+    for (var i = 1; i < points.length; i++) total += pointDistance(points[i - 1], points[i]);
+    return total;
+  }
+
+  /** Walks the path by cumulative segment length to find the point at `dist` px along it - smooth continuous motion rather than jumping vertex to vertex. */
+  function pointAtDistance(points, dist) {
+    if (points.length === 1) return points[0];
+    var remaining = dist;
+    for (var i = 1; i < points.length; i++) {
+      var segLen = pointDistance(points[i - 1], points[i]);
+      if (remaining <= segLen || i === points.length - 1) {
+        var t = segLen === 0 ? 0 : Math.min(1, remaining / segLen);
+        return {
+          x: points[i - 1].x + (points[i].x - points[i - 1].x) * t,
+          y: points[i - 1].y + (points[i].y - points[i - 1].y) * t
+        };
+      }
+      remaining -= segLen;
+    }
+    return points[points.length - 1];
+  }
+
+  function startPathSimulation() {
+    if (!lastAppliedPathPoints || lastAppliedPathPoints.length < 2) return;
+    if (simRunning) return;
+
+    renderResultBase(); // fresh canvas first, so this run's spray trail doesn't mix with a previous run's
+    simRunning = true;
+    simPlayBtn.disabled = true;
+    simStopBtn.disabled = false;
+
+    var points = lastAppliedPathPoints;
+    var totalLength = pathTotalLength(points);
+    var speed = parseFloat(simSpeedInput.value) || 200;
+    var transparency = (parseFloat(simTransparencyInput.value) || 35) / 100;
+    var color = simColorInput.value || '#f6ad55';
+    var startTime = null;
+
+    function frame(timestamp) {
+      if (!simRunning) return;
+      if (startTime === null) startTime = timestamp;
+      var dist = ((timestamp - startTime) / 1000) * speed;
+      var pos = pointAtDistance(points, Math.min(dist, totalLength));
+
+      // Deliberately not clearing between frames - overlapping passes blend via ordinary
+      // canvas alpha compositing, while gaps in coverage keep showing the photo through.
+      resultCtx.save();
+      resultCtx.globalAlpha = transparency;
+      resultCtx.fillStyle = color;
+      resultCtx.beginPath();
+      resultCtx.arc(pos.x, pos.y, SPRAY_RADIUS, 0, Math.PI * 2);
+      resultCtx.fill();
+      resultCtx.restore();
+
+      if (dist >= totalLength) {
+        stopPathSimulation(true);
+        return;
+      }
+      simAnimationId = requestAnimationFrame(frame);
+    }
+
+    setStatus(simStatus, 'Simulating spray pass...', 'busy');
+    simAnimationId = requestAnimationFrame(frame);
+  }
+
+  function stopPathSimulation(finished) {
+    if (!simRunning) return;
+    simRunning = false;
+    if (simAnimationId) cancelAnimationFrame(simAnimationId);
+    simAnimationId = null;
+    simPlayBtn.disabled = false;
+    simStopBtn.disabled = true;
+    setStatus(simStatus, finished ? 'Spray pass finished.' : 'Spray pass stopped.', finished ? 'ok' : '');
+  }
+
+  simPlayBtn.addEventListener('click', startPathSimulation);
+  simStopBtn.addEventListener('click', function () { stopPathSimulation(false); });
+  simTransparencyInput.addEventListener('input', function () { simTransparencyVal.textContent = simTransparencyInput.value; });
+  simSpeedInput.addEventListener('input', function () { simSpeedVal.textContent = simSpeedInput.value; });
 
   matchBtn.addEventListener('click', function () {
     if (!preRunRecipe || preRunRecipe.tiles.length === 0) { setStatus(matchStatus, 'Load a recipe with at least one path first.', 'err'); return; }
