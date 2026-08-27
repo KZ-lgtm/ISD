@@ -70,17 +70,20 @@ main {
 
 .row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
 
+.canvas-col { flex: 1 1 400px; min-width: 0; }
+
 .canvas-wrap {
   background: #0a0e18;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px;
-  display: inline-block;
+  display: block;
+  width: 100%;
 }
 
 canvas { display: block; background: #1a2130; border-radius: 4px; max-width: 100%; height: auto; }
 
-.controls { flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: 10px; }
+.controls { flex: 1 1 260px; min-width: 220px; display: flex; flex-direction: column; gap: 10px; }
 
 .control-group {
   background: var(--panel-2);
@@ -137,7 +140,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 
 .feature-preview-wrap {
   background: #0a0e18; border: 1px dashed var(--border); border-radius: 8px;
-  padding: 6px; display: inline-flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 6px; display: flex; width: 100%; flex-direction: column; align-items: center; gap: 4px;
 }
 .feature-preview-wrap span { font-size: 0.75rem; color: var(--text-dim); }
 
