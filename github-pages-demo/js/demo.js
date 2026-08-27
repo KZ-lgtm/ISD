@@ -489,11 +489,7 @@
     });
   }
 
-  combineContourThreshold.addEventListener('input', function () {
-    combineThresholdVal.textContent = combineContourThreshold.value;
-  });
-
-  combineFindContoursBtn.addEventListener('click', function () {
+  function runFindContours() {
     if (!isCvReady()) { setStatus(combineStatus, t('combine.statusCvLoading'), 'busy'); return; }
     var mats = [];
     function track(m) { mats.push(m); return m; }
@@ -534,7 +530,16 @@
     } finally {
       mats.forEach(function (m) { try { m.delete(); } catch (e) { } });
     }
+  }
+
+  var findContoursDebounce = null;
+  combineContourThreshold.addEventListener('input', function () {
+    combineThresholdVal.textContent = combineContourThreshold.value;
+    if (findContoursDebounce) clearTimeout(findContoursDebounce);
+    findContoursDebounce = setTimeout(runFindContours, 80);
   });
+
+  combineFindContoursBtn.addEventListener('click', runFindContours);
 
   combineImageUpload.addEventListener('change', function (evt) {
     var file = evt.target.files && evt.target.files[0];
@@ -675,11 +680,15 @@
     return { shiftX: shiftX, shiftY: shiftY, rotateDeg: rotateDeg, Tx: Tx, Ty: Ty };
   }
 
+  var generateCurrentDebounce = null;
   [simShiftX, simShiftY, simRotate].forEach(function (input) {
     input.addEventListener('input', function () {
       simShiftXVal.textContent = simShiftX.value;
       simShiftYVal.textContent = simShiftY.value;
       simRotateVal.textContent = simRotate.value;
+      if (!preRunRecipe) return;
+      if (generateCurrentDebounce) clearTimeout(generateCurrentDebounce);
+      generateCurrentDebounce = setTimeout(generateCurrent, 80);
     });
   });
 
