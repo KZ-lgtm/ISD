@@ -90,7 +90,8 @@
   }
 
   function tileIsClosedLoop(tile) {
-    return tile.preset === 'contour';
+    if (tile.preset !== 'contour') return false;
+    return tile.closed !== false; // old saved contour tiles predate this flag - default to the closed outline they always were
   }
 
   function sampleContourPoints(points, count) {
@@ -200,18 +201,6 @@
     ctx.restore();
   }
 
-  function canvasPointFromEvent(canvas, evt) {
-    var rect = canvas.getBoundingClientRect();
-    var sx = canvas.width / rect.width, sy = canvas.height / rect.height;
-    return { x: (evt.clientX - rect.left) * sx, y: (evt.clientY - rect.top) * sy };
-  }
-
-  function normalizeRect(a, b) {
-    var x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
-    var w = Math.abs(b.x - a.x), h = Math.abs(b.y - a.y);
-    return { x: x, y: y, w: w, h: h };
-  }
-
   /** Draws the fr crop at its native pixel size (no scaling, no aspect-ratio change), centered in previewCanvas. Returns the {dx,dy} offset used, so callers can align overlays in the same coordinate space, or null if nothing was drawn. */
   function drawCropToPreview(sourceCanvasOrImg, fr, previewCanvas) {
     var pctx = previewCanvas.getContext('2d');
@@ -261,14 +250,17 @@
   var combineCtx = combineCanvas.getContext('2d');
   var combineFeaturePreview = document.getElementById('combineFeaturePreview');
   var combineFeatureStatus = document.getElementById('combineFeatureStatus');
-  var drawFeatureBtn = document.getElementById('drawFeatureBtn');
-  var clearFeatureBtn = document.getElementById('clearFeatureBtn');
   var combineImageUpload = document.getElementById('combineImageUpload');
   var resetSyntheticImageBtn = document.getElementById('resetSyntheticImageBtn');
   var combineContourThreshold = document.getElementById('combineContourThreshold');
   var combineThresholdVal = document.getElementById('combineThresholdVal');
   var combineFindContoursBtn = document.getElementById('combineFindContoursBtn');
   var combineContourList = document.getElementById('combineContourList');
+  var pathModeFollowBtn = document.getElementById('pathModeFollowBtn');
+  var pathModeFillBtn = document.getElementById('pathModeFillBtn');
+  var fillDistanceRow = document.getElementById('fillDistanceRow');
+  var combineFillDistanceInput = document.getElementById('combineFillDistance');
+  var combineFillDistanceVal = document.getElementById('combineFillDistanceVal');
   var recipeNameInput = document.getElementById('recipeNameInput');
   var saveRecipeBtn = document.getElementById('saveRecipeBtn');
   var combineRecipeSelect = document.getElementById('combineRecipeSelect');
@@ -322,11 +314,10 @@
   var combineRefCanvas = makeWorkpieceCanvas(0, 0, 0);
   var combineTiles = [];
   var combineFeatureRegion = null;
-  var combineSelectingFeature = false;
-  var combineDragStart = null;
-  var combineDragCurrent = null;
   var combineContourData = []; // [{ points:[{x,y}], area, rect:{x,y,w,h} }], largest first
   var combineSelectedContourIndex = -1;
+  var combinePathMode = 'follow'; // 'follow' | 'fill'
+  var combineFillSpacing = 20;
 
   function combineResetLayout(msg) {
     combineTiles = [];
@@ -373,60 +364,34 @@
       strokeContourPathOn(combineCtx, combineContourData[combineSelectedContourIndex].points, '#4fd1c5', 2.5);
     }
     combineTiles.forEach(function (tile) { drawTilePath(combineCtx, tile); });
-    if (combineSelectingFeature && combineDragStart && combineDragCurrent) {
-      drawFeatureRect(combineCtx, normalizeRect(combineDragStart, combineDragCurrent), '#4fd1c5');
-    } else if (combineFeatureRegion) {
+    if (combineFeatureRegion) {
       drawFeatureRect(combineCtx, combineFeatureRegion, '#f6ad55');
     }
   }
 
-  combineCanvas.addEventListener('mousedown', function (evt) {
-    var pt = canvasPointFromEvent(combineCanvas, evt);
-    if (combineSelectingFeature) {
-      combineDragStart = pt;
-      combineDragCurrent = pt;
-    }
-  });
-  combineCanvas.addEventListener('mousemove', function (evt) {
-    if (combineSelectingFeature && combineDragStart) {
-      combineDragCurrent = canvasPointFromEvent(combineCanvas, evt);
-      renderCombineCanvas();
-    }
-  });
-  combineCanvas.addEventListener('mouseup', function (evt) {
-    var pt = canvasPointFromEvent(combineCanvas, evt);
-    if (combineSelectingFeature && combineDragStart) {
-      var rect = normalizeRect(combineDragStart, pt);
-      combineDragStart = null; combineDragCurrent = null;
-      combineSelectingFeature = false;
-      if (rect.w > 8 && rect.h > 8) {
-        combineFeatureRegion = rect;
-        combineSelectedContourIndex = -1;
-        combineTiles = combineTiles.filter(function (t) { return t.preset !== 'contour'; });
-        renderCombineContourList();
-        combineRenderFeaturePreview();
-        setStatus(combineFeatureStatus, 'Feature region set (' + Math.round(rect.w) + '×' + Math.round(rect.h) + ' px)');
-        setStatus(combineStatus, 'Feature region saved.', 'ok');
-      } else {
-        setStatus(combineStatus, 'Region too small, try again.', 'err');
+  /** Even-odd scanline fill of a closed polygon, walked as a continuous zigzag (boustrophedon) path spaced `spacing` px apart - "Fill (zigzag)" path generation. */
+  function scanlineFillPath(polygon, spacing) {
+    var minY = Math.min.apply(null, polygon.map(function (p) { return p.y; }));
+    var maxY = Math.max.apply(null, polygon.map(function (p) { return p.y; }));
+    var path = [];
+    var leftToRight = true;
+    for (var y = minY + spacing / 2; y < maxY; y += spacing) {
+      var xs = [];
+      for (var i = 0; i < polygon.length; i++) {
+        var p1 = polygon[i], p2 = polygon[(i + 1) % polygon.length];
+        if ((p1.y <= y && p2.y > y) || (p2.y <= y && p1.y > y)) {
+          xs.push(p1.x + (y - p1.y) / (p2.y - p1.y) * (p2.x - p1.x));
+        }
       }
-      renderCombineCanvas();
+      xs.sort(function (a, b) { return a - b; });
+      for (var k = 0; k + 1 < xs.length; k += 2) {
+        var a = { x: xs[k], y: y }, b = { x: xs[k + 1], y: y };
+        if (leftToRight) { path.push(a, b); } else { path.push(b, a); }
+      }
+      leftToRight = !leftToRight;
     }
-  });
-
-  drawFeatureBtn.addEventListener('click', function () {
-    combineSelectingFeature = true;
-    setStatus(combineStatus, 'Drag a rectangle over a small, distinctive area of the photo.');
-  });
-  clearFeatureBtn.addEventListener('click', function () {
-    combineFeatureRegion = null;
-    combineSelectedContourIndex = -1;
-    combineTiles = combineTiles.filter(function (t) { return t.preset !== 'contour'; });
-    renderCombineContourList();
-    combineRenderFeaturePreview();
-    setStatus(combineFeatureStatus, 'No feature region selected');
-    renderCombineCanvas();
-  });
+    return path;
+  }
 
   function combineApplyContour(index) {
     var c = combineContourData[index];
@@ -434,12 +399,35 @@
     combineSelectedContourIndex = index;
     combineFeatureRegion = { x: c.rect.x, y: c.rect.y, w: c.rect.w, h: c.rect.h };
     combineTiles = combineTiles.filter(function (t) { return t.preset !== 'contour'; });
-    combineTiles.push({ preset: 'contour', points: sampleContourPoints(c.points, 16) });
+    var pathLabel;
+    if (combinePathMode === 'fill') {
+      combineTiles.push({ preset: 'contour', points: scanlineFillPath(c.points, combineFillSpacing), closed: false });
+      pathLabel = 'zigzag fill';
+    } else {
+      combineTiles.push({ preset: 'contour', points: sampleContourPoints(c.points, 16), closed: true });
+      pathLabel = 'contour outline';
+    }
     combineRenderFeaturePreview();
-    setStatus(combineFeatureStatus, 'Feature region + auto-generated path from contour #' + index + ' (' + Math.round(c.rect.w) + '×' + Math.round(c.rect.h) + ' px)');
+    setStatus(combineFeatureStatus, 'Feature region + ' + pathLabel + ' path from contour #' + index + ' (' + Math.round(c.rect.w) + '×' + Math.round(c.rect.h) + ' px)');
     renderCombineContourList();
     renderCombineCanvas();
   }
+
+  function setPathMode(mode) {
+    combinePathMode = mode;
+    pathModeFollowBtn.classList.toggle('active', mode === 'follow');
+    pathModeFillBtn.classList.toggle('active', mode === 'fill');
+    fillDistanceRow.style.display = mode === 'fill' ? 'block' : 'none';
+    if (combineSelectedContourIndex >= 0) combineApplyContour(combineSelectedContourIndex);
+  }
+
+  pathModeFollowBtn.addEventListener('click', function () { setPathMode('follow'); });
+  pathModeFillBtn.addEventListener('click', function () { setPathMode('fill'); });
+  combineFillDistanceInput.addEventListener('input', function () {
+    combineFillDistanceVal.textContent = combineFillDistanceInput.value;
+    combineFillSpacing = parseInt(combineFillDistanceInput.value, 10);
+    if (combinePathMode === 'fill' && combineSelectedContourIndex >= 0) combineApplyContour(combineSelectedContourIndex);
+  });
 
   function renderCombineContourList() {
     combineContourList.innerHTML = '';

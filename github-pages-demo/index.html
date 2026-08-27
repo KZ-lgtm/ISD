@@ -24,9 +24,10 @@
   <section class="step-card">
     <h2><span class="num">1</span> Combine — Build a Recipe</h2>
     <p class="hint">
-      Load a reference photo, then find and select a distinctive contour on it — that becomes both
-      the "feature region" the vision system will later search for, and a spray path auto-generated
-      by tracing the contour's own outline. Save the result as a named recipe.
+      Load a reference photo, then find and select a distinctive contour on it — that becomes the
+      "feature region" the vision system will later search for. A spray path is generated
+      automatically from it, either tracing its outline or filling it with a zigzag pass. Save the
+      result as a named recipe.
     </p>
     <div class="row">
       <div class="canvas-col">
@@ -47,12 +48,7 @@
           </div>
         </div>
         <div class="control-group">
-          <label>2. Mark the feature region</label>
-          <div class="btn-row">
-            <button id="drawFeatureBtn">Draw feature region</button>
-            <button id="clearFeatureBtn" class="secondary">Clear</button>
-          </div>
-          <p class="hint" style="margin:8px 0 4px;font-size:0.8rem;">...or find one automatically:</p>
+          <label>2. Find a contour to use as the feature region</label>
           <label style="margin-top:2px;">Threshold: <span id="combineThresholdVal">100</span></label>
           <input type="range" id="combineContourThreshold" min="0" max="255" value="100">
           <div class="btn-row" style="margin-top:6px;">
@@ -61,7 +57,18 @@
           <ul class="contour-list" id="combineContourList"></ul>
         </div>
         <div class="control-group">
-          <label>3. Save / load recipe</label>
+          <label>3. Auto-generate the spray path</label>
+          <div class="btn-row">
+            <button id="pathModeFollowBtn" class="mode-btn active">Follow contour</button>
+            <button id="pathModeFillBtn" class="mode-btn">Fill (zigzag)</button>
+          </div>
+          <div id="fillDistanceRow" style="display:none;margin-top:8px;">
+            <label>Fill spacing: <span id="combineFillDistanceVal">20</span> px</label>
+            <input type="range" id="combineFillDistance" min="6" max="60" step="2" value="20">
+          </div>
+        </div>
+        <div class="control-group">
+          <label>4. Save / load recipe</label>
           <div class="btn-row">
             <input type="text" id="recipeNameInput" placeholder="Recipe name" style="flex:1;min-width:120px;">
             <button id="saveRecipeBtn" class="primary">Save recipe</button>
