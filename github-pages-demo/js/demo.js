@@ -141,19 +141,28 @@
     return result;
   }
 
+  function currentPathLineWidth() {
+    return parseFloat(pathLineWidthInput.value) || 3;
+  }
+
+  function currentPathPointSize() {
+    return parseFloat(pathPointSizeInput.value) || 3.5;
+  }
+
   function drawTilePath(ctx, tile, colorOverride) {
     var color = colorOverride || tileColor(tile);
     var pts = tileAbsolutePoints(tile);
+    var pointSize = currentPathPointSize();
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = currentPathLineWidth();
     ctx.beginPath();
     pts.forEach(function (p, idx) { if (idx === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
     if (tileIsClosedLoop(tile)) ctx.closePath();
     ctx.stroke();
     pts.forEach(function (p) {
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, pointSize, 0, Math.PI * 2);
       ctx.fill();
     });
   }
@@ -165,16 +174,17 @@
     var pts = tileAbsolutePoints(tile).map(function (p) {
       return { x: a * p.x - b * p.y + transform.dx, y: b * p.x + a * p.y + transform.dy };
     });
+    var pointSize = currentPathPointSize();
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = currentPathLineWidth();
     ctx.beginPath();
     pts.forEach(function (p, idx) { if (idx === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
     if (tileIsClosedLoop(tile)) ctx.closePath();
     ctx.stroke();
     pts.forEach(function (p) {
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, pointSize, 0, Math.PI * 2);
       ctx.fill();
     });
     return pts;
@@ -300,6 +310,10 @@
   var fillDistanceRow = document.getElementById('fillDistanceRow');
   var combineFillDistanceInput = document.getElementById('combineFillDistance');
   var combineFillDistanceVal = document.getElementById('combineFillDistanceVal');
+  var pathPointSizeInput = document.getElementById('pathPointSizeInput');
+  var pathPointSizeVal = document.getElementById('pathPointSizeVal');
+  var pathLineWidthInput = document.getElementById('pathLineWidthInput');
+  var pathLineWidthVal = document.getElementById('pathLineWidthVal');
   var recipeNameInput = document.getElementById('recipeNameInput');
   var saveRecipeBtn = document.getElementById('saveRecipeBtn');
   var combineRecipeSelect = document.getElementById('combineRecipeSelect');
@@ -381,14 +395,14 @@
     var pts = contourTile.points.map(function (p) { return { x: p.x - fr.x + offset.dx, y: p.y - fr.y + offset.dy }; });
     pctx.strokeStyle = CONTOUR_PATH_COLOR;
     pctx.fillStyle = CONTOUR_PATH_COLOR;
-    pctx.lineWidth = 2.5;
+    pctx.lineWidth = currentPathLineWidth();
     pctx.beginPath();
     pts.forEach(function (p, idx) { if (idx === 0) pctx.moveTo(p.x, p.y); else pctx.lineTo(p.x, p.y); });
     pctx.closePath();
     pctx.stroke();
     pts.forEach(function (p) {
       pctx.beginPath();
-      pctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      pctx.arc(p.x, p.y, currentPathPointSize(), 0, Math.PI * 2);
       pctx.fill();
     });
   }
@@ -467,6 +481,26 @@
     combineFillDistanceVal.textContent = combineFillDistanceInput.value;
     combineFillSpacing = parseInt(combineFillDistanceInput.value, 10);
     if (combinePathMode === 'fill' && combineSelectedContourIndex >= 0) combineApplyContour(combineSelectedContourIndex);
+  });
+
+  /** Redraws every canvas currently showing a generated path, so the point/line style controls apply live everywhere at once. */
+  function refreshAllPathRendering() {
+    renderCombineCanvas();
+    combineRenderFeaturePreview();
+    if (preRunRecipe) {
+      renderPreRunRecipeCanvas();
+      preRunRenderFeaturePreview();
+    }
+    if (lastAppliedMatch) renderResultBase();
+  }
+
+  pathPointSizeInput.addEventListener('input', function () {
+    pathPointSizeVal.textContent = pathPointSizeInput.value;
+    refreshAllPathRendering();
+  });
+  pathLineWidthInput.addEventListener('input', function () {
+    pathLineWidthVal.textContent = pathLineWidthInput.value;
+    refreshAllPathRendering();
   });
 
   function renderCombineContourList() {
@@ -649,14 +683,14 @@
     var pts = contourTile.points.map(function (p) { return { x: p.x - fr.x + offset.dx, y: p.y - fr.y + offset.dy }; });
     pctx.strokeStyle = CONTOUR_PATH_COLOR;
     pctx.fillStyle = CONTOUR_PATH_COLOR;
-    pctx.lineWidth = 2.5;
+    pctx.lineWidth = currentPathLineWidth();
     pctx.beginPath();
     pts.forEach(function (p, idx) { if (idx === 0) pctx.moveTo(p.x, p.y); else pctx.lineTo(p.x, p.y); });
     pctx.closePath();
     pctx.stroke();
     pts.forEach(function (p) {
       pctx.beginPath();
-      pctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      pctx.arc(p.x, p.y, currentPathPointSize(), 0, Math.PI * 2);
       pctx.fill();
     });
   }

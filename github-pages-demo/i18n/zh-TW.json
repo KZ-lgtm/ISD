@@ -15,6 +15,8 @@
   "combine.followContour": "沿輪廓描邊",
   "combine.fillZigzag": "填充（之字形）",
   "combine.fillSpacingLabel": "填充間距：",
+  "combine.pointSizeLabel": "標記點大小：",
+  "combine.lineWidthLabel": "線條寬度：",
   "combine.step4": "4. 儲存 / 載入配方",
   "combine.recipeNamePlaceholder": "配方名稱",
   "combine.saveRecipe": "儲存配方",
