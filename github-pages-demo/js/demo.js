@@ -291,6 +291,8 @@
   var resetSyntheticImageBtn = document.getElementById('resetSyntheticImageBtn');
   var combineContourThreshold = document.getElementById('combineContourThreshold');
   var combineThresholdVal = document.getElementById('combineThresholdVal');
+  var combineMinArea = document.getElementById('combineMinArea');
+  var combineMinAreaVal = document.getElementById('combineMinAreaVal');
   var combineFindContoursBtn = document.getElementById('combineFindContoursBtn');
   var combineContourList = document.getElementById('combineContourList');
   var pathModeFollowBtn = document.getElementById('pathModeFollowBtn');
@@ -332,6 +334,8 @@
   var resultCtx = resultCanvas.getContext('2d');
 
   var simColorInput = document.getElementById('simColorInput');
+  var simSizeInput = document.getElementById('simSizeInput');
+  var simSizeVal = document.getElementById('simSizeVal');
   var simTransparencyInput = document.getElementById('simTransparencyInput');
   var simTransparencyVal = document.getElementById('simTransparencyVal');
   var simSpeedInput = document.getElementById('simSpeedInput');
@@ -505,10 +509,11 @@
       cv.findContours(binary, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
       combineContourData = [];
+      var minArea = parseInt(combineMinArea.value, 10);
       for (var i = 0; i < contours.size(); i++) {
         var c = contours.get(i);
         var area = cv.contourArea(c, false);
-        if (area < 20) continue;
+        if (area < minArea) continue;
         var br = cv.boundingRect(c);
         var points = [];
         for (var j = 0; j < c.data32S.length; j += 2) points.push({ x: c.data32S[j], y: c.data32S[j + 1] });
@@ -533,10 +538,17 @@
   }
 
   var findContoursDebounce = null;
-  combineContourThreshold.addEventListener('input', function () {
-    combineThresholdVal.textContent = combineContourThreshold.value;
+  function scheduleFindContours() {
     if (findContoursDebounce) clearTimeout(findContoursDebounce);
     findContoursDebounce = setTimeout(runFindContours, 80);
+  }
+  combineContourThreshold.addEventListener('input', function () {
+    combineThresholdVal.textContent = combineContourThreshold.value;
+    scheduleFindContours();
+  });
+  combineMinArea.addEventListener('input', function () {
+    combineMinAreaVal.textContent = combineMinArea.value;
+    scheduleFindContours();
   });
 
   combineFindContoursBtn.addEventListener('click', runFindContours);
@@ -960,6 +972,7 @@
     var speed = parseFloat(simSpeedInput.value) || 200;
     var transparency = (parseFloat(simTransparencyInput.value) || 35) / 100;
     var color = simColorInput.value || '#f6ad55';
+    var sprayRadius = parseFloat(simSizeInput.value) || SPRAY_RADIUS;
     var startTime = null;
 
     function frame(timestamp) {
@@ -974,7 +987,7 @@
       resultCtx.globalAlpha = transparency;
       resultCtx.fillStyle = color;
       resultCtx.beginPath();
-      resultCtx.arc(pos.x, pos.y, SPRAY_RADIUS, 0, Math.PI * 2);
+      resultCtx.arc(pos.x, pos.y, sprayRadius, 0, Math.PI * 2);
       resultCtx.fill();
       resultCtx.restore();
 
@@ -1001,6 +1014,7 @@
 
   simPlayBtn.addEventListener('click', startPathSimulation);
   simStopBtn.addEventListener('click', function () { stopPathSimulation(false); });
+  simSizeInput.addEventListener('input', function () { simSizeVal.textContent = simSizeInput.value; });
   simTransparencyInput.addEventListener('input', function () { simTransparencyVal.textContent = simTransparencyInput.value; });
   simSpeedInput.addEventListener('input', function () { simSpeedVal.textContent = simSpeedInput.value; });
 

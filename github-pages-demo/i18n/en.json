@@ -9,6 +9,7 @@
   "combine.useSample": "Use sample photo",
   "combine.step2": "2. Find a contour to use as the feature region",
   "combine.thresholdLabel": "Threshold:",
+  "combine.minAreaLabel": "Min contour size:",
   "combine.findContours": "Find contours",
   "combine.step3": "3. Auto-generate the spray path",
   "combine.followContour": "Follow contour",
@@ -88,6 +89,7 @@
 
   "sim.heading": "Path Simulation",
   "sim.sprayColor": "Spray color",
+  "sim.sizeLabel": "Spray size:",
   "sim.transparency": "Transparency:",
   "sim.speed": "Speed:",
   "sim.play": "Play",

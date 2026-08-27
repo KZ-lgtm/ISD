@@ -9,6 +9,7 @@
   "combine.useSample": "使用範例照片",
   "combine.step2": "2. 尋找輪廓作為特徵區域",
   "combine.thresholdLabel": "閾值：",
+  "combine.minAreaLabel": "輪廓最小面積：",
   "combine.findContours": "尋找輪廓",
   "combine.step3": "3. 自動產生噴塗路徑",
   "combine.followContour": "沿輪廓描邊",
@@ -88,6 +89,7 @@
 
   "sim.heading": "路徑模擬",
   "sim.sprayColor": "噴塗顏色",
+  "sim.sizeLabel": "噴塗尺寸：",
   "sim.transparency": "透明度：",
   "sim.speed": "速度：",
   "sim.play": "播放",

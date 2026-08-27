@@ -42,6 +42,8 @@
           <label data-i18n="combine.step2">2. Find a contour to use as the feature region</label>
           <label style="margin-top:2px;"><span data-i18n="combine.thresholdLabel">Threshold:</span> <span id="combineThresholdVal">100</span></label>
           <input type="range" id="combineContourThreshold" min="0" max="255" value="100">
+          <label style="margin-top:8px;"><span data-i18n="combine.minAreaLabel">Min contour size:</span> <span id="combineMinAreaVal">20</span> px²</label>
+          <input type="range" id="combineMinArea" min="0" max="1000" step="10" value="20">
           <div class="btn-row" style="margin-top:6px;">
             <button id="combineFindContoursBtn" data-i18n="combine.findContours">Find contours</button>
           </div>
@@ -150,6 +152,8 @@
           <label data-i18n="sim.heading">Path Simulation</label>
           <label data-i18n="sim.sprayColor">Spray color</label>
           <input type="color" id="simColorInput" value="#f6ad55" style="width:100%;height:34px;padding:2px;">
+          <label style="margin-top:8px;"><span data-i18n="sim.sizeLabel">Spray size:</span> <span id="simSizeVal">14</span> px</label>
+          <input type="range" id="simSizeInput" min="4" max="40" step="2" value="14">
           <label style="margin-top:8px;"><span data-i18n="sim.transparency">Transparency:</span> <span id="simTransparencyVal">35</span>%</label>
           <input type="range" id="simTransparencyInput" min="5" max="100" step="5" value="35">
           <label style="margin-top:8px;"><span data-i18n="sim.speed">Speed:</span> <span id="simSpeedVal">200</span> px/s</label>
