@@ -174,6 +174,21 @@
     ctx.drawImage(img, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
   }
 
+  /** Draws img into a WxH canvas, fitted and centered as usual, then nudged by (shiftX,shiftY) and rotated by rotateDeg about the canvas center - the same transform drawWorkpiece() uses, generalized to any image. */
+  function drawShiftedImage(ctx, img, shiftX, shiftY, rotateDeg) {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#1a2130';
+    ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.translate(CX + shiftX, CY + shiftY);
+    ctx.rotate(rotateDeg * Math.PI / 180);
+    ctx.translate(-CX, -CY);
+    var scale = Math.min(W / img.width, H / img.height);
+    var dw = img.width * scale, dh = img.height * scale;
+    ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    ctx.restore();
+  }
+
   function drawFeatureRect(ctx, fr, color) {
     if (!fr) return;
     ctx.save();
@@ -266,8 +281,6 @@
   var preRunFeatureStatus = document.getElementById('preRunFeatureStatus');
   var preRunRecipeSelect = document.getElementById('preRunRecipeSelect');
   var preRunLoadRecipeBtn = document.getElementById('preRunLoadRecipeBtn');
-  var preRunCurrentCanvas = document.getElementById('preRunCurrentCanvas');
-  var preRunCurrentCtx = preRunCurrentCanvas.getContext('2d');
 
   var simShiftX = document.getElementById('simShiftX'), simShiftXVal = document.getElementById('simShiftXVal');
   var simShiftY = document.getElementById('simShiftY'), simShiftYVal = document.getElementById('simShiftYVal');
@@ -637,15 +650,14 @@
   });
 
   function generateCurrent() {
+    if (!preRunRecipe) { setStatus(matchStatus, 'Load a recipe first.', 'err'); return; }
     var sx = parseFloat(simShiftX.value), sy = parseFloat(simShiftY.value), rot = parseFloat(simRotate.value);
-    var c = makeWorkpieceCanvas(sx, sy, rot);
-    preRunCurrentCtx.clearRect(0, 0, W, H);
-    preRunCurrentCtx.drawImage(c, 0, 0);
+    drawShiftedImage(preRunRecipeCtx, preRunRecipe.imageObj, sx, sy, rot);
     groundTruth = currentGroundTruthLabel(sx, sy, rot);
     matchResultBox.style.display = 'none';
     groundTruthBox.style.display = 'none';
     resultCtx.clearRect(0, 0, W, H);
-    setStatus(matchStatus, 'Simulated current photo generated. Run the match to measure the deviation.');
+    setStatus(matchStatus, 'Simulated current photo generated (the photo above now shows the nudged version). Run the match to measure the deviation.');
   }
 
   generateCurrentBtn.addEventListener('click', generateCurrent);
@@ -663,12 +675,12 @@
     var file = evt.target.files && evt.target.files[0];
     if (!file) return;
     loadFileAsImage(file, function (img) {
-      fitImageIntoCanvas(img, preRunCurrentCanvas);
+      fitImageIntoCanvas(img, preRunRecipeCanvas);
       groundTruth = null;
       matchResultBox.style.display = 'none';
       groundTruthBox.style.display = 'none';
       resultCtx.clearRect(0, 0, W, H);
-      setStatus(matchStatus, 'Uploaded photo ready (no ground truth available for a real photo). Run the match.');
+      setStatus(matchStatus, 'Uploaded photo ready (the photo above now shows it - no ground truth available for a real photo). Run the match.');
     });
   });
 
@@ -769,7 +781,7 @@
       tCanvas.getContext('2d').drawImage(preRunRecipe.imageObj, 0, 0, W, H);
 
       var srcTemplate = track(cv.imread(tCanvas));
-      var srcCurrent = track(cv.imread(preRunCurrentCanvas));
+      var srcCurrent = track(cv.imread(preRunRecipeCanvas));
       var grayTemplate = track(new cv.Mat());
       var grayCurrent = track(new cv.Mat());
       cv.cvtColor(srcTemplate, grayTemplate, cv.COLOR_RGBA2GRAY);
@@ -831,7 +843,7 @@
 
   function applyMatchToPath(match, statusLabel) {
     resultCtx.clearRect(0, 0, W, H);
-    resultCtx.drawImage(preRunCurrentCanvas, 0, 0);
+    resultCtx.drawImage(preRunRecipeCanvas, 0, 0);
     preRunRecipe.tiles.forEach(function (tile) { drawTransformedTilePath(resultCtx, tile, match, '#4fd1c5'); });
     resultCtx.fillStyle = '#e6ebf5';
     resultCtx.font = 'bold 13px sans-serif';

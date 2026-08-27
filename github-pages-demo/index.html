@@ -80,10 +80,10 @@
   <section class="step-card">
     <h2><span class="num">2</span> Pre-run — Match &amp; Correct</h2>
     <p class="hint">
-      Load a saved recipe, then either generate a simulated "current photo" (the workpiece nudged by
-      a known amount, so you can check the math) or upload your own photo. Run the match to detect
-      real ORB features, filter them with a RANSAC-fit rigid transform, and apply the measured
-      deviation to the saved path.
+      Load a saved recipe, then either nudge its photo by a known amount (so you can check the math)
+      or replace it with a real photo of your own — either way, that becomes the current photo to
+      match against. Run the match to detect real ORB features, filter them with a RANSAC-fit rigid
+      transform, and apply the measured deviation to the saved path.
     </p>
 
     <div class="row">
@@ -105,8 +105,9 @@
           </div>
         </div>
         <div class="control-group">
-          <label>Simulated workpiece shift (ground truth — hidden until you reveal it)</label>
-          <label style="margin-top:6px;">X shift: <span id="simShiftXVal">0</span> px</label>
+          <label>Simulate the workpiece shifting (ground truth — hidden until you reveal it)</label>
+          <p class="hint" style="margin:4px 0 8px;font-size:0.8rem;">Nudges the photo shown above and uses it as the current photo to match against.</p>
+          <label>X shift: <span id="simShiftXVal">0</span> px</label>
           <input type="range" id="simShiftX" min="-80" max="80" value="0">
           <label>Y shift: <span id="simShiftYVal">0</span> px</label>
           <input type="range" id="simShiftY" min="-60" max="60" value="0">
@@ -121,16 +122,6 @@
           <label>...or use a real photo instead</label>
           <input type="file" id="uploadCurrentInput" accept="image/*">
         </div>
-      </div>
-    </div>
-
-    <div class="row" style="margin-top:16px;">
-      <div class="canvas-col">
-        <div class="canvas-wrap">
-          <canvas id="preRunCurrentCanvas" width="560" height="360"></canvas>
-        </div>
-      </div>
-      <div class="controls">
         <div class="control-group">
           <div class="btn-row">
             <button id="matchBtn" class="primary">Run pattern match</button>
