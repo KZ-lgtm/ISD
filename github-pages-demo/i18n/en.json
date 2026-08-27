@@ -1,6 +1,5 @@
 {
   "app.title": "Intelligent Spray — Interactive Demo",
-  "app.badge": "Runs 100% locally in your browser — no server, no upload",
   "app.footer": "Intelligent Spray demo · runs entirely client-side, no data leaves your browser",
   "app.langEn": "EN",
   "app.langZh": "中文",
@@ -48,7 +47,6 @@
   "prerun.xShift": "X shift:",
   "prerun.yShift": "Y shift:",
   "prerun.rotation": "Rotation:",
-  "prerun.randomize": "Randomize",
   "prerun.generateCurrent": "Generate current photo",
   "prerun.useRealPhoto": "...or use a real photo instead",
   "prerun.runMatch": "Run pattern match",

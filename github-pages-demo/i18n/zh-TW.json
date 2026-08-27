@@ -1,6 +1,5 @@
 {
   "app.title": "智慧噴塗 — 互動式展示",
-  "app.badge": "完全在瀏覽器本機執行 — 無伺服器、無上傳",
   "app.footer": "智慧噴塗展示 · 完全於用戶端執行，資料不會離開您的瀏覽器",
   "app.langEn": "EN",
   "app.langZh": "中文",
@@ -48,7 +47,6 @@
   "prerun.xShift": "X 偏移：",
   "prerun.yShift": "Y 偏移：",
   "prerun.rotation": "旋轉：",
-  "prerun.randomize": "隨機產生",
   "prerun.generateCurrent": "產生目前照片",
   "prerun.useRealPhoto": "…或改用實際照片",
   "prerun.runMatch": "執行圖案比對",
