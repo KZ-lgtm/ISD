@@ -1,6 +1,43 @@
 (function () {
   'use strict';
 
+  // ---------- i18n ----------
+
+  var LANG_KEY = 'ispDemoLang';
+  var dictionaries = {};
+  var currentLang = localStorage.getItem(LANG_KEY) ||
+    ((navigator.language || '').indexOf('zh') === 0 ? 'zh-TW' : 'en');
+
+  function t(key, vars) {
+    var dict = dictionaries[currentLang] || {};
+    var str = dict[key] || (dictionaries.en && dictionaries.en[key]) || key;
+    if (vars) {
+      Object.keys(vars).forEach(function (k) {
+        str = str.split('{' + k + '}').join(vars[k]);
+      });
+    }
+    return str;
+  }
+
+  function loadDictionaries() {
+    return Promise.all([
+      fetch('i18n/en.json').then(function (r) { return r.json(); }),
+      fetch('i18n/zh-TW.json').then(function (r) { return r.json(); })
+    ]).then(function (results) {
+      dictionaries.en = results[0];
+      dictionaries['zh-TW'] = results[1];
+    });
+  }
+
+  loadDictionaries().then(startApp).catch(function (err) {
+    console.error('Failed to load i18n dictionaries, falling back to raw keys:', err);
+    dictionaries.en = dictionaries.en || {};
+    dictionaries['zh-TW'] = dictionaries['zh-TW'] || {};
+    startApp();
+  });
+
+  function startApp() {
+
   var W = 560, H = 360;
   var CX = W / 2, CY = H / 2;
 
@@ -67,8 +104,8 @@
 
   var arcPoints = [];
   for (var i = 0; i <= 10; i++) {
-    var t = (i / 10) * Math.PI;
-    arcPoints.push([40 - 40 * Math.cos(t), -40 * Math.sin(t)]);
+    var arcAngle = (i / 10) * Math.PI;
+    arcPoints.push([40 - 40 * Math.cos(arcAngle), -40 * Math.sin(arcAngle)]);
   }
 
   var PATH_PRESETS = {
@@ -230,7 +267,7 @@
       sel.innerHTML = '';
       if (names.length === 0) {
         var opt = document.createElement('option');
-        opt.textContent = '(no saved recipes)';
+        opt.textContent = t('combine.noSavedRecipes');
         opt.disabled = true;
         sel.appendChild(opt);
       } else {
@@ -325,7 +362,7 @@
     combineContourData = [];
     combineSelectedContourIndex = -1;
     combineRenderFeaturePreview();
-    setStatus(combineFeatureStatus, 'No feature region selected');
+    setStatus(combineFeatureStatus, t('combine.noFeatureRegion'));
     renderCombineContourList();
     if (msg) setStatus(combineStatus, msg);
   }
@@ -402,13 +439,13 @@
     var pathLabel;
     if (combinePathMode === 'fill') {
       combineTiles.push({ preset: 'contour', points: scanlineFillPath(c.points, combineFillSpacing), closed: false });
-      pathLabel = 'zigzag fill';
+      pathLabel = t('combine.pathLabelFill');
     } else {
       combineTiles.push({ preset: 'contour', points: sampleContourPoints(c.points, 16), closed: true });
-      pathLabel = 'contour outline';
+      pathLabel = t('combine.pathLabelFollow');
     }
     combineRenderFeaturePreview();
-    setStatus(combineFeatureStatus, 'Feature region + ' + pathLabel + ' path from contour #' + index + ' (' + Math.round(c.rect.w) + '×' + Math.round(c.rect.h) + ' px)');
+    setStatus(combineFeatureStatus, t('combine.featureAndPath', { pathLabel: pathLabel, index: index, w: Math.round(c.rect.w), h: Math.round(c.rect.h) }));
     renderCombineContourList();
     renderCombineCanvas();
   }
@@ -434,7 +471,7 @@
     if (combineContourData.length === 0) {
       var empty = document.createElement('li');
       empty.className = 'empty';
-      empty.textContent = 'No contours found yet - click "Find contours".';
+      empty.textContent = t('combine.contourEmpty');
       combineContourList.appendChild(empty);
       return;
     }
@@ -445,7 +482,7 @@
       label.textContent = '#' + i;
       var badge = document.createElement('span');
       badge.className = 'badge';
-      badge.textContent = 'area ' + Math.round(c.area) + ' px²';
+      badge.textContent = t('combine.contourArea', { area: Math.round(c.area) });
       li.appendChild(label);
       li.appendChild(badge);
       li.addEventListener('click', function () { combineApplyContour(i); });
@@ -458,7 +495,7 @@
   });
 
   combineFindContoursBtn.addEventListener('click', function () {
-    if (!isCvReady()) { setStatus(combineStatus, 'OpenCV.js is still loading, please wait.', 'busy'); return; }
+    if (!isCvReady()) { setStatus(combineStatus, t('combine.statusCvLoading'), 'busy'); return; }
     var mats = [];
     function track(m) { mats.push(m); return m; }
     try {
@@ -466,8 +503,8 @@
       var gray = track(new cv.Mat());
       cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
       var binary = track(new cv.Mat());
-      var t = parseInt(combineContourThreshold.value, 10);
-      cv.threshold(gray, binary, t, 255, cv.THRESH_BINARY);
+      var thresholdVal = parseInt(combineContourThreshold.value, 10);
+      cv.threshold(gray, binary, thresholdVal, 255, cv.THRESH_BINARY);
       var contours = track(new cv.MatVector());
       var hierarchy = track(new cv.Mat());
       cv.findContours(binary, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
@@ -487,14 +524,14 @@
       renderCombineContourList();
       if (combineContourData.length > 0) {
         combineApplyContour(0);
-        setStatus(combineStatus, combineContourData.length + ' contour(s) found - largest one auto-selected as the feature region. Pick a different row to change it.', 'ok');
+        setStatus(combineStatus, t('combine.statusContoursFound', { count: combineContourData.length }), 'ok');
       } else {
         combineSelectedContourIndex = -1;
         renderCombineCanvas();
-        setStatus(combineStatus, 'No contours found - try a lower or higher threshold.', 'err');
+        setStatus(combineStatus, t('combine.statusNoContours'), 'err');
       }
     } catch (ex) {
-      setStatus(combineStatus, 'Find contours failed: ' + ex.message, 'err');
+      setStatus(combineStatus, t('combine.statusFindFailed', { msg: ex.message }), 'err');
     } finally {
       mats.forEach(function (m) { try { m.delete(); } catch (e) { } });
     }
@@ -505,21 +542,21 @@
     if (!file) return;
     loadFileAsImage(file, function (img) {
       fitImageIntoCanvas(img, combineRefCanvas);
-      combineResetLayout('Loaded your photo. Previous paths and feature region were cleared - place them again on the new photo.');
+      combineResetLayout(t('combine.statusPhotoLoaded'));
       renderCombineCanvas();
     });
   });
 
   resetSyntheticImageBtn.addEventListener('click', function () {
     combineRefCanvas = makeWorkpieceCanvas(0, 0, 0);
-    combineResetLayout('Restored the built-in sample photo.');
+    combineResetLayout(t('combine.statusSampleRestored'));
     renderCombineCanvas();
   });
 
   saveRecipeBtn.addEventListener('click', function () {
     var name = recipeNameInput.value.trim();
-    if (!name) { setStatus(combineStatus, 'Enter a recipe name first.', 'err'); return; }
-    if (combineTiles.length === 0) { setStatus(combineStatus, 'Place at least one path before saving.', 'err'); return; }
+    if (!name) { setStatus(combineStatus, t('combine.statusEnterName'), 'err'); return; }
+    if (combineTiles.length === 0) { setStatus(combineStatus, t('combine.statusNeedPath'), 'err'); return; }
     var recipes = loadRecipes();
     recipes[name] = {
       image: combineRefCanvas.toDataURL('image/png'),
@@ -529,7 +566,7 @@
     saveRecipes(recipes);
     refreshRecipeSelects();
     combineRecipeSelect.value = name;
-    setStatus(combineStatus, 'Saved recipe "' + name + '".', 'ok');
+    setStatus(combineStatus, t('combine.statusSaved', { name: name }), 'ok');
   });
 
   combineLoadRecipeBtn.addEventListener('click', function () {
@@ -549,15 +586,15 @@
       renderCombineCanvas();
       if (combineFeatureRegion) {
         combineRenderFeaturePreview();
-        setStatus(combineFeatureStatus, 'Feature region set (' + Math.round(combineFeatureRegion.w) + '×' + Math.round(combineFeatureRegion.h) + ' px)');
+        setStatus(combineFeatureStatus, t('combine.featureRegionSet', { w: Math.round(combineFeatureRegion.w), h: Math.round(combineFeatureRegion.h) }));
       } else {
         combineRenderFeaturePreview();
-        setStatus(combineFeatureStatus, 'No feature region selected');
+        setStatus(combineFeatureStatus, t('combine.noFeatureRegion'));
       }
     };
     img.src = data.image;
     recipeNameInput.value = name;
-    setStatus(combineStatus, 'Loaded recipe "' + name + '".', 'ok');
+    setStatus(combineStatus, t('combine.statusLoaded', { name: name }), 'ok');
   });
 
   combineDeleteRecipeBtn.addEventListener('click', function () {
@@ -567,7 +604,7 @@
     delete recipes[name];
     saveRecipes(recipes);
     refreshRecipeSelects();
-    setStatus(combineStatus, 'Deleted recipe "' + name + '".');
+    setStatus(combineStatus, t('combine.statusDeleted', { name: name }));
   });
 
   // ---------- pre-run state ----------
@@ -619,12 +656,12 @@
       renderPreRunRecipeCanvas();
       if (preRunRecipe.featureRegion) {
         preRunRenderFeaturePreview();
-        setStatus(preRunFeatureStatus, 'Recipe "' + name + '" loaded');
+        setStatus(preRunFeatureStatus, t('prerun.featureRecipeLoaded', { name: name }));
       } else {
         preRunRenderFeaturePreview();
-        setStatus(preRunFeatureStatus, 'Recipe has no feature region - matching will fail');
+        setStatus(preRunFeatureStatus, t('prerun.featureNoRegion'));
       }
-      setStatus(matchStatus, 'Recipe loaded. Generate or upload a current photo, then run the match.');
+      setStatus(matchStatus, t('prerun.matchRecipeLoaded'));
       matchResultBox.style.display = 'none';
       resultCtx.clearRect(0, 0, W, H);
     };
@@ -648,14 +685,14 @@
   });
 
   function generateCurrent() {
-    if (!preRunRecipe) { setStatus(matchStatus, 'Load a recipe first.', 'err'); return; }
+    if (!preRunRecipe) { setStatus(matchStatus, t('prerun.matchLoadFirst'), 'err'); return; }
     var sx = parseFloat(simShiftX.value), sy = parseFloat(simShiftY.value), rot = parseFloat(simRotate.value);
     drawShiftedImage(preRunRecipeCtx, preRunRecipe.imageObj, sx, sy, rot);
     groundTruth = currentGroundTruthLabel(sx, sy, rot);
     matchResultBox.style.display = 'none';
     groundTruthBox.style.display = 'none';
     resultCtx.clearRect(0, 0, W, H);
-    setStatus(matchStatus, 'Simulated current photo generated (the photo above now shows the nudged version). Run the match to measure the deviation.');
+    setStatus(matchStatus, t('prerun.matchSimGenerated'));
   }
 
   generateCurrentBtn.addEventListener('click', generateCurrent);
@@ -678,7 +715,7 @@
       matchResultBox.style.display = 'none';
       groundTruthBox.style.display = 'none';
       resultCtx.clearRect(0, 0, W, H);
-      setStatus(matchStatus, 'Uploaded photo ready (the photo above now shows it - no ground truth available for a real photo). Run the match.');
+      setStatus(matchStatus, t('prerun.matchUploaded'));
     });
   });
 
@@ -690,13 +727,13 @@
 
   matchBtn.disabled = true;
   combineFindContoursBtn.disabled = true;
-  setStatus(matchStatus, 'Loading OpenCV.js (WebAssembly, ~10 MB) - this can take a few seconds on first load...', 'busy');
+  setStatus(matchStatus, t('prerun.cvLoadingInitial'), 'busy');
   var cvPoll = setInterval(function () {
     if (isCvReady()) {
       clearInterval(cvPoll);
       matchBtn.disabled = false;
       combineFindContoursBtn.disabled = false;
-      setStatus(matchStatus, 'OpenCV.js ready. Load a recipe, generate or upload a current photo, then run the match.', 'ok');
+      setStatus(matchStatus, t('prerun.cvReady'), 'ok');
     }
   }, 250);
 
@@ -765,10 +802,10 @@
   }
 
   function runMatch() {
-    if (!isCvReady()) { setStatus(matchStatus, 'OpenCV.js is still loading, please wait.', 'busy'); return null; }
-    if (!preRunRecipe) { setStatus(matchStatus, 'Load a recipe first.', 'err'); return null; }
+    if (!isCvReady()) { setStatus(matchStatus, t('combine.statusCvLoading'), 'busy'); return null; }
+    if (!preRunRecipe) { setStatus(matchStatus, t('prerun.matchLoadFirst'), 'err'); return null; }
     var fr = preRunRecipe.featureRegion;
-    if (!fr) { setStatus(matchStatus, 'This recipe has no feature region.', 'err'); return null; }
+    if (!fr) { setStatus(matchStatus, t('prerun.matchNoFeatureRegion'), 'err'); return null; }
 
     var mats = [];
     function track(m) { mats.push(m); return m; }
@@ -801,7 +838,7 @@
       orb.delete();
 
       if (desc1.rows < 2 || desc2.rows < 2) {
-        setStatus(matchStatus, 'Not enough distinctive features found - try a smaller, more detailed feature region.', 'err');
+        setStatus(matchStatus, t('prerun.matchTooFewFeatures'), 'err');
         return null;
       }
 
@@ -823,13 +860,13 @@
       }
 
       if (goodPairs.length < 4) {
-        setStatus(matchStatus, 'Too few good matches (' + goodPairs.length + ') to compute a reliable transform.', 'err');
+        setStatus(matchStatus, t('prerun.matchTooFewMatches', { count: goodPairs.length }), 'err');
         return null;
       }
 
       var fit = ransacSimilarity(goodPairs);
       if (!fit || fit.inlierCount < 4 || fit.score < 0.35) {
-        setStatus(matchStatus, 'Match confidence too low (inliers ' + (fit ? fit.inlierCount : 0) + ', score ' + (fit ? fit.score.toFixed(2) : '0') + '). Try a more distinctive feature region.', 'err');
+        setStatus(matchStatus, t('prerun.matchLowConfidence', { inliers: fit ? fit.inlierCount : 0, score: fit ? fit.score.toFixed(2) : '0' }), 'err');
         return null;
       }
 
@@ -840,10 +877,10 @@
   }
 
   var lastAppliedMatch = null;
-  var lastAppliedStatusLabel = '';
+  var lastAppliedStatusLabelKey = '';
   var lastAppliedPathPoints = [];
 
-  /** Redraws the current photo + transformed path + label from the last applied match - the "clean" (no spray) view, reused both right after a match/confirm and to reset the trail before each simulation run. */
+  /** Redraws the current photo + transformed path + label from the last applied match - the "clean" (no spray) view, reused both right after a match/confirm, to reset the trail before each simulation run, and to redraw the label in a newly selected language. */
   function renderResultBase() {
     resultCtx.clearRect(0, 0, W, H);
     resultCtx.drawImage(preRunRecipeCanvas, 0, 0);
@@ -853,18 +890,18 @@
     });
     resultCtx.fillStyle = '#e6ebf5';
     resultCtx.font = 'bold 13px sans-serif';
-    resultCtx.fillText(lastAppliedStatusLabel, 10, 18);
+    resultCtx.fillText(t(lastAppliedStatusLabelKey), 10, 18);
     return pts;
   }
 
-  function applyMatchToPath(match, statusLabel) {
+  function applyMatchToPath(match, statusLabelKey) {
     stopPathSimulation();
     lastAppliedMatch = match;
-    lastAppliedStatusLabel = statusLabel;
+    lastAppliedStatusLabelKey = statusLabelKey;
     lastAppliedPathPoints = renderResultBase();
     var enough = lastAppliedPathPoints.length >= 2;
     simPlayBtn.disabled = !enough;
-    setStatus(simStatus, enough ? 'Ready - press Play to simulate the spray pass.' : 'This path has too few points to simulate.');
+    setStatus(simStatus, enough ? t('sim.statusReady') : t('sim.statusTooFew'));
   }
 
   // ---------- Path Simulation: animate a spray circle along the applied path ----------
@@ -941,7 +978,7 @@
       simAnimationId = requestAnimationFrame(frame);
     }
 
-    setStatus(simStatus, 'Simulating spray pass...', 'busy');
+    setStatus(simStatus, t('sim.statusSimulating'), 'busy');
     simAnimationId = requestAnimationFrame(frame);
   }
 
@@ -952,7 +989,7 @@
     simAnimationId = null;
     simPlayBtn.disabled = false;
     simStopBtn.disabled = true;
-    setStatus(simStatus, finished ? 'Spray pass finished.' : 'Spray pass stopped.', finished ? 'ok' : '');
+    setStatus(simStatus, finished ? t('sim.statusFinished') : t('sim.statusStopped'), finished ? 'ok' : '');
   }
 
   simPlayBtn.addEventListener('click', startPathSimulation);
@@ -961,8 +998,8 @@
   simSpeedInput.addEventListener('input', function () { simSpeedVal.textContent = simSpeedInput.value; });
 
   matchBtn.addEventListener('click', function () {
-    if (!preRunRecipe || preRunRecipe.tiles.length === 0) { setStatus(matchStatus, 'Load a recipe with at least one path first.', 'err'); return; }
-    setStatus(matchStatus, 'Running ORB detection + RANSAC fit...', 'busy');
+    if (!preRunRecipe || preRunRecipe.tiles.length === 0) { setStatus(matchStatus, t('prerun.matchNeedPath'), 'err'); return; }
+    setStatus(matchStatus, t('prerun.matchRunning'), 'busy');
     setTimeout(function () {
       var match = runMatch();
       if (!match) return;
@@ -977,33 +1014,103 @@
       matchResultBox.style.display = 'block';
       revealGroundTruthBtn.disabled = !groundTruth;
       groundTruthBox.style.display = 'none';
-      applyMatchToPath(match, 'Matched path (deviation applied)');
-      setStatus(matchStatus, 'Match applied to the saved path.', 'ok');
+      applyMatchToPath(match, 'prerun.pathLabelMatched');
+      setStatus(matchStatus, t('prerun.matchApplied'), 'ok');
     }, 30);
   });
 
   confirmPathBtn.addEventListener('click', function () {
-    if (!preRunRecipe || preRunRecipe.tiles.length === 0) { setStatus(matchStatus, 'Load a recipe with at least one path first.', 'err'); return; }
-    applyMatchToPath({ dx: 0, dy: 0, thetaDeg: 0 }, 'Confirmed path (no pattern match)');
-    setStatus(matchStatus, 'Path confirmed with no adjustment - use only when you are certain the workpiece has not moved.', 'ok');
+    if (!preRunRecipe || preRunRecipe.tiles.length === 0) { setStatus(matchStatus, t('prerun.matchNeedPath'), 'err'); return; }
+    applyMatchToPath({ dx: 0, dy: 0, thetaDeg: 0 }, 'prerun.pathLabelConfirmed');
+    setStatus(matchStatus, t('prerun.matchConfirmed'), 'ok');
   });
 
-  revealGroundTruthBtn.addEventListener('click', function () {
+  function renderGroundTruthBox() {
     if (!groundTruth || !lastMatch) return;
     var lines = [];
-    lines.push('You dialed in: shift (' + groundTruth.shiftX + ', ' + groundTruth.shiftY + ') px, rotate ' + groundTruth.rotateDeg + ' deg.');
-    lines.push('Expected measured translation about the image origin: (' + groundTruth.Tx.toFixed(1) + ', ' + groundTruth.Ty.toFixed(1) + ') px' + (groundTruth.rotateDeg !== 0 ? ' - differs from the raw shift because rotation is measured about the origin, the same convention the production system uses.' : '.'));
-    lines.push('Detected: (' + lastMatch.dx.toFixed(1) + ', ' + lastMatch.dy.toFixed(1) + ') px, ' + lastMatch.thetaDeg.toFixed(2) + ' deg.');
+    lines.push(t('prerun.groundDialedIn', { sx: groundTruth.shiftX, sy: groundTruth.shiftY, rot: groundTruth.rotateDeg }));
+    lines.push(t('prerun.groundExpected', { tx: groundTruth.Tx.toFixed(1), ty: groundTruth.Ty.toFixed(1) }) +
+      (groundTruth.rotateDeg !== 0 ? t('prerun.groundExpectedNote') : '.'));
+    lines.push(t('prerun.groundDetected', { dx: lastMatch.dx.toFixed(1), dy: lastMatch.dy.toFixed(1), theta: lastMatch.thetaDeg.toFixed(2) }));
     var errX = lastMatch.dx - groundTruth.Tx, errY = lastMatch.dy - groundTruth.Ty, errT = lastMatch.thetaDeg - groundTruth.rotateDeg;
-    lines.push('Error: (' + errX.toFixed(1) + ', ' + errY.toFixed(1) + ') px, ' + errT.toFixed(2) + ' deg.');
+    lines.push(t('prerun.groundError', { ex: errX.toFixed(1), ey: errY.toFixed(1), et: errT.toFixed(2) }));
     groundTruthBox.textContent = lines.join(' ');
     groundTruthBox.style.display = 'block';
-  });
+  }
+
+  revealGroundTruthBtn.addEventListener('click', renderGroundTruthBox);
+
+  // ---------- language switching ----------
+
+  var langEnBtn = document.getElementById('langEnBtn');
+  var langZhBtn = document.getElementById('langZhBtn');
+
+  function applyI18nStatic() {
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+      el.textContent = t(el.getAttribute('data-i18n'));
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(function (el) {
+      el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+    });
+    document.title = t('app.title');
+    langEnBtn.classList.toggle('active', currentLang === 'en');
+    langZhBtn.classList.toggle('active', currentLang === 'zh-TW');
+  }
+
+  /** Re-renders every piece of dynamically-generated text on the page in the newly selected language - static labels are handled by applyI18nStatic(), this covers everything demo.js writes into the DOM/canvas itself. */
+  function refreshDynamicText() {
+    renderCombineContourList();
+    refreshRecipeSelects();
+
+    if (combineSelectedContourIndex >= 0 && combineContourData[combineSelectedContourIndex]) {
+      var c = combineContourData[combineSelectedContourIndex];
+      var pathLabel = combinePathMode === 'fill' ? t('combine.pathLabelFill') : t('combine.pathLabelFollow');
+      setStatus(combineFeatureStatus, t('combine.featureAndPath', { pathLabel: pathLabel, index: combineSelectedContourIndex, w: Math.round(c.rect.w), h: Math.round(c.rect.h) }));
+    } else if (combineFeatureRegion) {
+      setStatus(combineFeatureStatus, t('combine.featureRegionSet', { w: Math.round(combineFeatureRegion.w), h: Math.round(combineFeatureRegion.h) }));
+    } else {
+      setStatus(combineFeatureStatus, t('combine.noFeatureRegion'));
+    }
+    if (combineContourData.length > 0) {
+      setStatus(combineStatus, t('combine.statusContoursFound', { count: combineContourData.length }), 'ok');
+    }
+
+    if (preRunRecipe) {
+      setStatus(preRunFeatureStatus, preRunRecipe.featureRegion ? t('prerun.featureRecipeLoaded', { name: preRunRecipeSelect.value }) : t('prerun.featureNoRegion'));
+    } else {
+      setStatus(preRunFeatureStatus, t('prerun.noRecipeLoaded'));
+    }
+    setStatus(matchStatus, isCvReady() ? t('prerun.cvReady') : t('prerun.cvLoadingInitial'), isCvReady() ? 'ok' : 'busy');
+
+    if (lastAppliedMatch) {
+      renderResultBase();
+      setStatus(simStatus, lastAppliedPathPoints.length >= 2 ? t('sim.statusReady') : t('sim.statusTooFew'));
+    } else {
+      setStatus(simStatus, t('sim.statusInitial'));
+    }
+
+    if (groundTruthBox.style.display !== 'none') renderGroundTruthBox();
+  }
+
+  function setLang(lang) {
+    if (lang === currentLang) return;
+    currentLang = lang;
+    localStorage.setItem(LANG_KEY, lang);
+    applyI18nStatic();
+    refreshDynamicText();
+  }
+
+  langEnBtn.addEventListener('click', function () { setLang('en'); });
+  langZhBtn.addEventListener('click', function () { setLang('zh-TW'); });
 
   // ---------- init ----------
 
+  applyI18nStatic();
   renderCombineCanvas();
   drawCropToPreview(combineRefCanvas, null, combineFeaturePreview);
   renderCombineContourList();
   refreshRecipeSelects();
+  setStatus(simStatus, t('sim.statusInitial'));
+
+  } // end startApp
 })();

@@ -22,18 +22,37 @@ body {
 }
 
 header.hero {
+  position: relative;
   padding: 28px 20px 20px;
   text-align: center;
   border-bottom: 1px solid var(--border);
   background: linear-gradient(180deg, #131a2a, var(--bg));
 }
 
-header.hero h1 { margin: 0 0 6px; font-size: 1.6rem; }
-header.hero p { margin: 4px 0; color: var(--text-dim); max-width: 720px; margin-left: auto; margin-right: auto; }
+header.hero h1 { margin: 0 0 10px; font-size: 1.6rem; }
 header.hero .badge {
-  display: inline-block; margin-top: 10px; padding: 4px 10px; border-radius: 999px;
+  display: inline-block; margin-top: 4px; padding: 4px 10px; border-radius: 999px;
   background: var(--panel-2); border: 1px solid var(--border); font-size: 0.8rem; color: var(--accent);
 }
+
+.lang-switch {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  display: flex;
+  gap: 4px;
+}
+.lang-btn {
+  padding: 5px 11px;
+  font-size: 0.78rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.lang-btn:hover { color: var(--text); }
+.lang-btn.active { background: var(--accent); color: #0a1018; border-color: var(--accent); }
 
 main {
   max-width: 1080px;
@@ -65,8 +84,6 @@ main {
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 0.85rem; font-weight: 700;
 }
-
-.step-card p.hint { color: var(--text-dim); font-size: 0.9rem; margin-top: 2px; }
 
 .row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
 

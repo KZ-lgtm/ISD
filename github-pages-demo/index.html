@@ -9,26 +9,18 @@
 <body>
 
 <header class="hero">
-  <h1>Intelligent Spray — Interactive Demo</h1>
-  <p>
-    A hands-on, browser-only reproduction of the "Combine" and "Pre-run" steps from a real
-    manufacturing-execution-system feature that guides a spray-painting robot: build a reusable
-    recipe (image + path + a trackable feature), then simulate a workpiece that has shifted and
-    watch real computer vision measure the deviation and correct the path.
-  </p>
-  <span class="badge">Runs 100% locally in your browser — no server, no upload</span>
+  <div class="lang-switch">
+    <button id="langEnBtn" class="lang-btn" data-i18n="app.langEn">EN</button>
+    <button id="langZhBtn" class="lang-btn" data-i18n="app.langZh">中文</button>
+  </div>
+  <h1 data-i18n="app.title">Intelligent Spray — Interactive Demo</h1>
+  <span class="badge" data-i18n="app.badge">Runs 100% locally in your browser — no server, no upload</span>
 </header>
 
 <main>
 
   <section class="step-card">
-    <h2><span class="num">1</span> Combine — Build a Recipe</h2>
-    <p class="hint">
-      Load a reference photo, then find and select a distinctive contour on it — that becomes the
-      "feature region" the vision system will later search for. A spray path is generated
-      automatically from it, either tracing its outline or filling it with a zigzag pass. Save the
-      result as a named recipe.
-    </p>
+    <h2><span class="num">1</span> <span data-i18n="combine.heading">Combine — Build a Recipe</span></h2>
     <div class="row">
       <div class="canvas-col">
         <div class="canvas-wrap">
@@ -36,47 +28,47 @@
         </div>
         <div class="feature-preview-wrap" style="margin-top:10px;">
           <canvas id="combineFeaturePreview" width="560" height="360"></canvas>
-          <span id="combineFeatureStatus">No feature region selected</span>
+          <span id="combineFeatureStatus" data-i18n="combine.noFeatureRegion">No feature region selected</span>
         </div>
       </div>
       <div class="controls">
         <div class="control-group">
-          <label>1. Load a reference photo</label>
+          <label data-i18n="combine.step1">1. Load a reference photo</label>
           <div class="btn-row">
             <input type="file" id="combineImageUpload" accept="image/*" style="flex:1;min-width:140px;">
-            <button id="resetSyntheticImageBtn" class="secondary">Use sample photo</button>
+            <button id="resetSyntheticImageBtn" class="secondary" data-i18n="combine.useSample">Use sample photo</button>
           </div>
         </div>
         <div class="control-group">
-          <label>2. Find a contour to use as the feature region</label>
-          <label style="margin-top:2px;">Threshold: <span id="combineThresholdVal">100</span></label>
+          <label data-i18n="combine.step2">2. Find a contour to use as the feature region</label>
+          <label style="margin-top:2px;"><span data-i18n="combine.thresholdLabel">Threshold:</span> <span id="combineThresholdVal">100</span></label>
           <input type="range" id="combineContourThreshold" min="0" max="255" value="100">
           <div class="btn-row" style="margin-top:6px;">
-            <button id="combineFindContoursBtn">Find contours</button>
+            <button id="combineFindContoursBtn" data-i18n="combine.findContours">Find contours</button>
           </div>
           <ul class="contour-list" id="combineContourList"></ul>
         </div>
         <div class="control-group">
-          <label>3. Auto-generate the spray path</label>
+          <label data-i18n="combine.step3">3. Auto-generate the spray path</label>
           <div class="btn-row">
-            <button id="pathModeFollowBtn" class="mode-btn active">Follow contour</button>
-            <button id="pathModeFillBtn" class="mode-btn">Fill (zigzag)</button>
+            <button id="pathModeFollowBtn" class="mode-btn active" data-i18n="combine.followContour">Follow contour</button>
+            <button id="pathModeFillBtn" class="mode-btn" data-i18n="combine.fillZigzag">Fill (zigzag)</button>
           </div>
           <div id="fillDistanceRow" style="display:none;margin-top:8px;">
-            <label>Fill spacing: <span id="combineFillDistanceVal">20</span> px</label>
+            <label><span data-i18n="combine.fillSpacingLabel">Fill spacing:</span> <span id="combineFillDistanceVal">20</span> px</label>
             <input type="range" id="combineFillDistance" min="6" max="60" step="2" value="20">
           </div>
         </div>
         <div class="control-group">
-          <label>4. Save / load recipe</label>
+          <label data-i18n="combine.step4">4. Save / load recipe</label>
           <div class="btn-row">
-            <input type="text" id="recipeNameInput" placeholder="Recipe name" style="flex:1;min-width:120px;">
-            <button id="saveRecipeBtn" class="primary">Save recipe</button>
+            <input type="text" id="recipeNameInput" data-i18n-placeholder="combine.recipeNamePlaceholder" placeholder="Recipe name" style="flex:1;min-width:120px;">
+            <button id="saveRecipeBtn" class="primary" data-i18n="combine.saveRecipe">Save recipe</button>
           </div>
           <div class="btn-row" style="margin-top:8px;">
             <select id="combineRecipeSelect" style="flex:1;"></select>
-            <button id="combineLoadRecipeBtn">Load</button>
-            <button id="combineDeleteRecipeBtn" class="warn">Delete</button>
+            <button id="combineLoadRecipeBtn" data-i18n="combine.load">Load</button>
+            <button id="combineDeleteRecipeBtn" class="warn" data-i18n="combine.delete">Delete</button>
           </div>
         </div>
         <div id="combineStatus" class="status-line"></div>
@@ -85,13 +77,7 @@
   </section>
 
   <section class="step-card">
-    <h2><span class="num">2</span> Pre-run — Match &amp; Correct</h2>
-    <p class="hint">
-      Load a saved recipe, then either nudge its photo by a known amount (so you can check the math)
-      or replace it with a real photo of your own — either way, that becomes the current photo to
-      match against. Run the match to detect real ORB features, filter them with a RANSAC-fit rigid
-      transform, and apply the measured deviation to the saved path.
-    </p>
+    <h2><span class="num">2</span> <span data-i18n="prerun.heading">Pre-run — Match & Correct</span></h2>
 
     <div class="row">
       <div class="canvas-col">
@@ -100,63 +86,61 @@
         </div>
         <div class="feature-preview-wrap" style="margin-top:10px;">
           <canvas id="preRunFeaturePreview" width="560" height="360"></canvas>
-          <span id="preRunFeatureStatus">No recipe loaded</span>
+          <span id="preRunFeatureStatus" data-i18n="prerun.noRecipeLoaded">No recipe loaded</span>
         </div>
       </div>
       <div class="controls">
         <div class="control-group">
-          <label>Recipe</label>
+          <label data-i18n="prerun.recipeLabel">Recipe</label>
           <div class="btn-row">
             <select id="preRunRecipeSelect" style="flex:1;"></select>
-            <button id="preRunLoadRecipeBtn">Load</button>
+            <button id="preRunLoadRecipeBtn" data-i18n="prerun.load">Load</button>
           </div>
         </div>
         <div class="control-group">
-          <label>Simulate the workpiece shifting (ground truth — hidden until you reveal it)</label>
-          <p class="hint" style="margin:4px 0 8px;font-size:0.8rem;">Nudges the photo shown above and uses it as the current photo to match against.</p>
-          <label>X shift: <span id="simShiftXVal">0</span> px</label>
+          <label data-i18n="prerun.simulateLabel">Simulate the workpiece shifting (ground truth — hidden until you reveal it)</label>
+          <label style="margin-top:6px;"><span data-i18n="prerun.xShift">X shift:</span> <span id="simShiftXVal">0</span> px</label>
           <input type="range" id="simShiftX" min="-80" max="80" value="0">
-          <label>Y shift: <span id="simShiftYVal">0</span> px</label>
+          <label><span data-i18n="prerun.yShift">Y shift:</span> <span id="simShiftYVal">0</span> px</label>
           <input type="range" id="simShiftY" min="-60" max="60" value="0">
-          <label>Rotation: <span id="simRotateVal">0</span> deg</label>
+          <label><span data-i18n="prerun.rotation">Rotation:</span> <span id="simRotateVal">0</span> deg</label>
           <input type="range" id="simRotate" min="-45" max="45" value="0">
           <div class="btn-row" style="margin-top:8px;">
-            <button id="randomizeShiftBtn">Randomize</button>
-            <button id="generateCurrentBtn" class="primary">Generate current photo</button>
+            <button id="randomizeShiftBtn" data-i18n="prerun.randomize">Randomize</button>
+            <button id="generateCurrentBtn" class="primary" data-i18n="prerun.generateCurrent">Generate current photo</button>
           </div>
         </div>
         <div class="control-group">
-          <label>...or use a real photo instead</label>
+          <label data-i18n="prerun.useRealPhoto">...or use a real photo instead</label>
           <input type="file" id="uploadCurrentInput" accept="image/*">
         </div>
         <div class="control-group">
           <div class="btn-row">
-            <button id="matchBtn" class="primary">Run pattern match</button>
-            <button id="confirmPathBtn" class="secondary">Confirm path (skip match)</button>
+            <button id="matchBtn" class="primary" data-i18n="prerun.runMatch">Run pattern match</button>
+            <button id="confirmPathBtn" class="secondary" data-i18n="prerun.confirmPath">Confirm path (skip match)</button>
           </div>
         </div>
         <div class="control-group" id="matchResultBox" style="display:none;">
-          <label>Match result</label>
+          <label data-i18n="prerun.matchResult">Match result</label>
           <div class="match-result-grid">
-            <span class="k">Detected shift X</span><span class="v" id="resultDx">-</span>
-            <span class="k">Detected shift Y</span><span class="v" id="resultDy">-</span>
-            <span class="k">Detected rotation</span><span class="v" id="resultTheta">-</span>
-            <span class="k">Inliers / matches</span><span class="v" id="resultInliers">-</span>
-            <span class="k">Confidence score</span><span class="v" id="resultScore">-</span>
+            <span class="k" data-i18n="prerun.detShiftX">Detected shift X</span><span class="v" id="resultDx">-</span>
+            <span class="k" data-i18n="prerun.detShiftY">Detected shift Y</span><span class="v" id="resultDy">-</span>
+            <span class="k" data-i18n="prerun.detRotation">Detected rotation</span><span class="v" id="resultTheta">-</span>
+            <span class="k" data-i18n="prerun.inliersMatches">Inliers / matches</span><span class="v" id="resultInliers">-</span>
+            <span class="k" data-i18n="prerun.confidenceScore">Confidence score</span><span class="v" id="resultScore">-</span>
           </div>
           <div class="btn-row" style="margin-top:10px;">
-            <button id="revealGroundTruthBtn" class="secondary">Reveal actual shift</button>
+            <button id="revealGroundTruthBtn" class="secondary" data-i18n="prerun.revealActualShift">Reveal actual shift</button>
           </div>
           <div id="groundTruthBox" class="status-line" style="display:none; margin-top:8px;"></div>
         </div>
-        <div id="matchStatus" class="status-line">Load a recipe, generate or upload a current photo, then run the match.</div>
+        <div id="matchStatus" class="status-line"></div>
       </div>
     </div>
   </section>
 
   <section class="step-card">
-    <h2><span class="num">3</span> Corrected Path</h2>
-    <p class="hint">The measured (or confirmed) path drawn directly over the current photo — exactly what the real system hands off to the robot simulator before any motion happens.</p>
+    <h2><span class="num">3</span> <span data-i18n="corrected.heading">Corrected Path</span></h2>
     <div class="row">
       <div class="canvas-col">
         <div class="canvas-wrap">
@@ -165,41 +149,26 @@
       </div>
       <div class="controls">
         <div class="control-group">
-          <label>Path Simulation</label>
-          <p class="hint" style="margin:4px 0 8px;font-size:0.8rem;">Animates a spray pass along the corrected path above, at the settings below.</p>
-          <label>Spray color</label>
+          <label data-i18n="sim.heading">Path Simulation</label>
+          <label data-i18n="sim.sprayColor">Spray color</label>
           <input type="color" id="simColorInput" value="#f6ad55" style="width:100%;height:34px;padding:2px;">
-          <label style="margin-top:8px;">Transparency: <span id="simTransparencyVal">35</span>%</label>
+          <label style="margin-top:8px;"><span data-i18n="sim.transparency">Transparency:</span> <span id="simTransparencyVal">35</span>%</label>
           <input type="range" id="simTransparencyInput" min="5" max="100" step="5" value="35">
-          <label style="margin-top:8px;">Speed: <span id="simSpeedVal">200</span> px/s</label>
+          <label style="margin-top:8px;"><span data-i18n="sim.speed">Speed:</span> <span id="simSpeedVal">200</span> px/s</label>
           <input type="range" id="simSpeedInput" min="20" max="800" step="20" value="200">
           <div class="btn-row" style="margin-top:10px;">
-            <button id="simPlayBtn" class="primary" disabled>Play</button>
-            <button id="simStopBtn" class="secondary" disabled>Stop</button>
+            <button id="simPlayBtn" class="primary" disabled data-i18n="sim.play">Play</button>
+            <button id="simStopBtn" class="secondary" disabled data-i18n="sim.stop">Stop</button>
           </div>
         </div>
-        <div id="simStatus" class="status-line">Apply a matched or confirmed path above to enable simulation.</div>
+        <div id="simStatus" class="status-line" data-i18n="sim.statusInitial">Apply a matched or confirmed path above to enable simulation.</div>
       </div>
     </div>
   </section>
 
-  <section class="step-card">
-    <h2>How this demo is built</h2>
-    <p class="hint" style="margin-bottom:0;">
-      This page runs real <strong>ORB feature detection + BFMatcher</strong> (via OpenCV.js/WebAssembly,
-      compiled to run entirely client-side) and a hand-written <strong>RANSAC-fit rigid transform</strong>
-      to estimate translation and rotation between two images — the same class of algorithm the production
-      system runs server-side in C# against a live ABB robot and a Hikrobot GigE camera. Nothing here is
-      faked or pre-recorded: the images are drawn live on &lt;canvas&gt;, and every match runs fresh in
-      your browser. The full production system additionally drives real robot motion (RAPID variable
-      writes with mastership handling and read-back verification), which this static demo intentionally
-      leaves out.
-    </p>
-  </section>
-
 </main>
 
-<footer>
+<footer data-i18n="app.footer">
   Intelligent Spray demo &middot; runs entirely client-side, no data leaves your browser
 </footer>
 
