@@ -1,16 +1,9 @@
+https://kz-lgtm.github.io/ISD/github-pages-demo/
 # Intelligent Spray — GitHub Pages Demo
 
 This folder is a complete, self-contained, static website. It reproduces the
 "Combine" and "Pre-run" steps of the Intelligent Spray feature as a real,
-interactive demo — not screenshots. It runs **real ORB feature detection +
-BFMatcher matching** and a hand-written RANSAC-fit rigid-transform solver,
-all client-side in the browser via OpenCV.js (WebAssembly). Nothing is faked;
-every image is drawn live on `<canvas>` and every match runs fresh.
-
-What it deliberately leaves out: real robot motion (RAPID writes, mastership,
-read-back verification) and the live camera feed, since there is no robot or
-camera to demo against on a public static site. The "How this demo is built"
-section on the page itself explains this to visitors.
+interactive demo
 
 ## Folder contents
 
