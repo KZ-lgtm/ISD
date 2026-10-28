@@ -266,8 +266,15 @@
   function loadRecipes() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch (e) { return {}; }
   }
+  /** Returns false (instead of throwing) when the browser's storage quota is exceeded. */
   function saveRecipes(recipes) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(recipes));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(recipes));
+      return true;
+    } catch (e) {
+      console.error('Failed to save recipes:', e);
+      return false;
+    }
   }
   function refreshRecipeSelects() {
     var recipes = loadRecipes();
@@ -292,6 +299,8 @@
   }
 
   // ---------- DOM refs ----------
+
+  var runDemoBtn = document.getElementById('runDemoBtn');
 
   var combineCanvas = document.getElementById('combineCanvas');
   var combineCtx = combineCanvas.getContext('2d');
@@ -603,20 +612,27 @@
     renderCombineCanvas();
   });
 
-  saveRecipeBtn.addEventListener('click', function () {
-    var name = recipeNameInput.value.trim();
-    if (!name) { setStatus(combineStatus, t('combine.statusEnterName'), 'err'); return; }
-    if (combineTiles.length === 0) { setStatus(combineStatus, t('combine.statusNeedPath'), 'err'); return; }
+  /** Saves the current Combine layout as recipe `name`; returns true on success. */
+  function saveCurrentRecipe(name, askBeforeOverwrite) {
+    if (!name) { setStatus(combineStatus, t('combine.statusEnterName'), 'err'); return false; }
+    if (combineTiles.length === 0) { setStatus(combineStatus, t('combine.statusNeedPath'), 'err'); return false; }
     var recipes = loadRecipes();
+    if (recipes[name] && askBeforeOverwrite && !confirm(t('combine.confirmOverwrite', { name: name }))) return false;
     recipes[name] = {
       image: combineRefCanvas.toDataURL('image/png'),
       featureRegion: combineFeatureRegion,
       tiles: combineTiles
     };
-    saveRecipes(recipes);
+    if (!saveRecipes(recipes)) { setStatus(combineStatus, t('combine.statusStorageFull'), 'err'); return false; }
     refreshRecipeSelects();
     combineRecipeSelect.value = name;
+    preRunRecipeSelect.value = name;
     setStatus(combineStatus, t('combine.statusSaved', { name: name }), 'ok');
+    return true;
+  }
+
+  saveRecipeBtn.addEventListener('click', function () {
+    saveCurrentRecipe(recipeNameInput.value.trim(), true);
   });
 
   combineLoadRecipeBtn.addEventListener('click', function () {
@@ -652,7 +668,7 @@
     var recipes = loadRecipes();
     if (!recipes[name]) return;
     delete recipes[name];
-    saveRecipes(recipes);
+    saveRecipes(recipes); // a delete only shrinks storage, so it can't hit the quota
     refreshRecipeSelects();
     setStatus(combineStatus, t('combine.statusDeleted', { name: name }));
   });
@@ -663,12 +679,39 @@
   var groundTruth = null;
   var lastMatch = null;
 
+  // The clean "current" camera image (simulated shift or uploaded photo), kept apart from
+  // preRunRecipeCanvas so matching and the step-3 background never see drawn overlays.
+  var preRunCurrentCanvas = document.createElement('canvas');
+  preRunCurrentCanvas.width = W; preRunCurrentCanvas.height = H;
+  var preRunCurrentCtx = preRunCurrentCanvas.getContext('2d');
+  var preRunCurrentIsRecipe = false; // true while the current image is the unshifted recipe photo
+
+  /** Shows the current image; the recipe's path + feature region are overlaid only while it is the unshifted recipe photo, where they line up. */
   function renderPreRunRecipeCanvas() {
     preRunRecipeCtx.clearRect(0, 0, W, H);
     if (!preRunRecipe) return;
-    preRunRecipeCtx.drawImage(preRunRecipe.imageObj, 0, 0, W, H);
+    preRunRecipeCtx.drawImage(preRunCurrentCanvas, 0, 0);
+    if (!preRunCurrentIsRecipe) return;
     preRunRecipe.tiles.forEach(function (tile) { drawTilePath(preRunRecipeCtx, tile); });
     drawFeatureRect(preRunRecipeCtx, preRunRecipe.featureRegion, '#f6ad55');
+  }
+
+  function resetSimSliders() {
+    simShiftX.value = 0; simShiftY.value = 0; simRotate.value = 0;
+    simShiftXVal.textContent = '0'; simShiftYVal.textContent = '0'; simRotateVal.textContent = '0';
+  }
+
+  /** Discards the previous match and step-3 result, since they no longer describe the current image. */
+  function clearMatchState() {
+    stopPathSimulation();
+    lastMatch = null;
+    lastAppliedMatch = null;
+    lastAppliedPathPoints = [];
+    matchResultBox.style.display = 'none';
+    groundTruthBox.style.display = 'none';
+    resultCtx.clearRect(0, 0, W, H);
+    simPlayBtn.disabled = true;
+    setStatus(simStatus, t('sim.statusInitial'));
   }
 
   /** Draws the recipe's feature-region crop at native size, plus its saved contour path (if any) overlaid in the same coordinate space. */
@@ -695,14 +738,22 @@
     });
   }
 
-  preRunLoadRecipeBtn.addEventListener('click', function () {
-    var name = preRunRecipeSelect.value;
+  /** Loads recipe `name` into Pre-run; calls onLoaded() once its photo has decoded. */
+  function loadPreRunRecipe(name, onLoaded) {
     var recipes = loadRecipes();
     var data = recipes[name];
     if (!data) return;
     var img = new Image();
     img.onload = function () {
       preRunRecipe = { imageObj: img, featureRegion: data.featureRegion || null, tiles: (data.tiles || []).slice() };
+      if (generateCurrentDebounce) clearTimeout(generateCurrentDebounce);
+      uploadCurrentInput.value = '';
+      resetSimSliders();
+      preRunCurrentCtx.clearRect(0, 0, W, H);
+      preRunCurrentCtx.drawImage(img, 0, 0, W, H);
+      preRunCurrentIsRecipe = true;
+      groundTruth = currentGroundTruthLabel(0, 0, 0);
+      clearMatchState();
       renderPreRunRecipeCanvas();
       if (preRunRecipe.featureRegion) {
         preRunRenderFeaturePreview();
@@ -712,11 +763,12 @@
         setStatus(preRunFeatureStatus, t('prerun.featureNoRegion'));
       }
       setStatus(matchStatus, t('prerun.matchRecipeLoaded'));
-      matchResultBox.style.display = 'none';
-      resultCtx.clearRect(0, 0, W, H);
+      if (onLoaded) onLoaded();
     };
     img.src = data.image;
-  });
+  }
+
+  preRunLoadRecipeBtn.addEventListener('click', function () { loadPreRunRecipe(preRunRecipeSelect.value); });
 
   function currentGroundTruthLabel(shiftX, shiftY, rotateDeg) {
     var rad = rotateDeg * Math.PI / 180;
@@ -741,15 +793,16 @@
   function generateCurrent() {
     if (!preRunRecipe) { setStatus(matchStatus, t('prerun.matchLoadFirst'), 'err'); return; }
     var sx = parseFloat(simShiftX.value), sy = parseFloat(simShiftY.value), rot = parseFloat(simRotate.value);
-    drawShiftedImage(preRunRecipeCtx, preRunRecipe.imageObj, sx, sy, rot);
+    uploadCurrentInput.value = ''; // moving the sliders switches back from an uploaded photo to the simulated one
+    drawShiftedImage(preRunCurrentCtx, preRunRecipe.imageObj, sx, sy, rot);
+    preRunCurrentIsRecipe = false;
     groundTruth = currentGroundTruthLabel(sx, sy, rot);
-    matchResultBox.style.display = 'none';
-    groundTruthBox.style.display = 'none';
-    resultCtx.clearRect(0, 0, W, H);
+    clearMatchState();
+    renderPreRunRecipeCanvas();
     setStatus(matchStatus, t('prerun.matchSimGenerated'));
   }
 
-  randomizeShiftBtn.addEventListener('click', function () {
+  function randomizeShift() {
     simShiftX.value = Math.round((Math.random() * 2 - 1) * 70);
     simShiftY.value = Math.round((Math.random() * 2 - 1) * 50);
     simRotate.value = Math.round((Math.random() * 2 - 1) * 35);
@@ -757,17 +810,22 @@
     simShiftYVal.textContent = simShiftY.value;
     simRotateVal.textContent = simRotate.value;
     generateCurrent();
-  });
+  }
+
+  randomizeShiftBtn.addEventListener('click', randomizeShift);
 
   uploadCurrentInput.addEventListener('change', function (evt) {
     var file = evt.target.files && evt.target.files[0];
     if (!file) return;
     loadFileAsImage(file, function (img) {
-      fitImageIntoCanvas(img, preRunRecipeCanvas);
+      if (generateCurrentDebounce) clearTimeout(generateCurrentDebounce);
+      fitImageIntoCanvas(img, preRunCurrentCanvas);
+      preRunCurrentIsRecipe = false;
+      resetSimSliders(); // the sliders don't describe an uploaded photo
       groundTruth = null;
-      matchResultBox.style.display = 'none';
-      groundTruthBox.style.display = 'none';
-      resultCtx.clearRect(0, 0, W, H);
+      clearMatchState();
+      if (preRunRecipe) renderPreRunRecipeCanvas();
+      else preRunRecipeCtx.drawImage(preRunCurrentCanvas, 0, 0);
       setStatus(matchStatus, t('prerun.matchUploaded'));
     });
   });
@@ -780,12 +838,14 @@
 
   matchBtn.disabled = true;
   combineFindContoursBtn.disabled = true;
+  runDemoBtn.disabled = true;
   setStatus(matchStatus, t('prerun.cvLoadingInitial'), 'busy');
   var cvPoll = setInterval(function () {
     if (isCvReady()) {
       clearInterval(cvPoll);
       matchBtn.disabled = false;
       combineFindContoursBtn.disabled = false;
+      runDemoBtn.disabled = false;
       setStatus(matchStatus, t('prerun.cvReady'), 'ok');
     }
   }, 250);
@@ -869,7 +929,7 @@
       tCanvas.getContext('2d').drawImage(preRunRecipe.imageObj, 0, 0, W, H);
 
       var srcTemplate = track(cv.imread(tCanvas));
-      var srcCurrent = track(cv.imread(preRunRecipeCanvas));
+      var srcCurrent = track(cv.imread(preRunCurrentCanvas));
       var grayTemplate = track(new cv.Mat());
       var grayCurrent = track(new cv.Mat());
       cv.cvtColor(srcTemplate, grayTemplate, cv.COLOR_RGBA2GRAY);
@@ -929,6 +989,7 @@
     }
   }
 
+  var ORIGINAL_PATH_COLOR = '#fc8181';
   var lastAppliedMatch = null;
   var lastAppliedStatusLabelKey = '';
   var lastAppliedPathPoints = [];
@@ -936,7 +997,13 @@
   /** Redraws the current photo + transformed path + label from the last applied match - the "clean" (no spray) view, reused both right after a match/confirm, to reset the trail before each simulation run, and to redraw the label in a newly selected language. */
   function renderResultBase() {
     resultCtx.clearRect(0, 0, W, H);
-    resultCtx.drawImage(preRunRecipeCanvas, 0, 0);
+    resultCtx.drawImage(preRunCurrentCanvas, 0, 0);
+    // the original (uncorrected) recipe path, faint and dashed, so the correction is visible at a glance
+    resultCtx.save();
+    resultCtx.globalAlpha = 0.75;
+    resultCtx.setLineDash([6, 5]);
+    preRunRecipe.tiles.forEach(function (tile) { drawTilePath(resultCtx, tile, ORIGINAL_PATH_COLOR); });
+    resultCtx.restore();
     var pts = [];
     preRunRecipe.tiles.forEach(function (tile) {
       pts = pts.concat(drawTransformedTilePath(resultCtx, tile, lastAppliedMatch, '#4fd1c5'));
@@ -1052,26 +1119,30 @@
   simTransparencyInput.addEventListener('input', function () { simTransparencyVal.textContent = simTransparencyInput.value; });
   simSpeedInput.addEventListener('input', function () { simSpeedVal.textContent = simSpeedInput.value; });
 
+  /** Runs the pattern match on the current image and, on success, shows the result and applies it to the path; returns true on success. */
+  function runMatchAndApply() {
+    var match = runMatch();
+    if (!match) return false;
+    lastMatch = match;
+    resultDx.textContent = match.dx.toFixed(1) + ' px';
+    resultDy.textContent = match.dy.toFixed(1) + ' px';
+    resultTheta.textContent = match.thetaDeg.toFixed(2) + ' deg';
+    resultInliers.textContent = match.inliers + ' / ' + match.totalMatches;
+    resultScore.textContent = (match.score * 100).toFixed(0) + '%';
+    resultInliers.className = 'v ' + (match.inliers >= 8 ? 'good' : '');
+    resultScore.className = 'v ' + (match.score >= 0.5 ? 'good' : '');
+    matchResultBox.style.display = 'block';
+    revealGroundTruthBtn.disabled = !groundTruth;
+    groundTruthBox.style.display = 'none';
+    applyMatchToPath(match, 'prerun.pathLabelMatched');
+    setStatus(matchStatus, t('prerun.matchApplied'), 'ok');
+    return true;
+  }
+
   matchBtn.addEventListener('click', function () {
     if (!preRunRecipe || preRunRecipe.tiles.length === 0) { setStatus(matchStatus, t('prerun.matchNeedPath'), 'err'); return; }
     setStatus(matchStatus, t('prerun.matchRunning'), 'busy');
-    setTimeout(function () {
-      var match = runMatch();
-      if (!match) return;
-      lastMatch = match;
-      resultDx.textContent = match.dx.toFixed(1) + ' px';
-      resultDy.textContent = match.dy.toFixed(1) + ' px';
-      resultTheta.textContent = match.thetaDeg.toFixed(2) + ' deg';
-      resultInliers.textContent = match.inliers + ' / ' + match.totalMatches;
-      resultScore.textContent = (match.score * 100).toFixed(0) + '%';
-      resultInliers.className = 'v ' + (match.inliers >= 8 ? 'good' : '');
-      resultScore.className = 'v ' + (match.score >= 0.5 ? 'good' : '');
-      matchResultBox.style.display = 'block';
-      revealGroundTruthBtn.disabled = !groundTruth;
-      groundTruthBox.style.display = 'none';
-      applyMatchToPath(match, 'prerun.pathLabelMatched');
-      setStatus(matchStatus, t('prerun.matchApplied'), 'ok');
-    }, 30);
+    setTimeout(runMatchAndApply, 30);
   });
 
   confirmPathBtn.addEventListener('click', function () {
@@ -1094,6 +1165,36 @@
   }
 
   revealGroundTruthBtn.addEventListener('click', renderGroundTruthBox);
+
+  // ---------- one-click full demo ----------
+
+  /** Walks the whole workflow with default settings: sample photo -> largest contour -> save recipe -> load in Pre-run -> random shift -> match -> reveal ground truth -> play the spray simulation. */
+  function runFullDemo() {
+    if (!isCvReady()) return;
+    runDemoBtn.disabled = true;
+    stopPathSimulation();
+
+    combineRefCanvas = makeWorkpieceCanvas(0, 0, 0);
+    combineResetLayout();
+    combineContourThreshold.value = 100; combineThresholdVal.textContent = '100';
+    combineMinArea.value = 20; combineMinAreaVal.textContent = '20';
+    runFindContours();
+
+    var name = t('app.demoRecipeName');
+    recipeNameInput.value = name;
+    if (!saveCurrentRecipe(name, false)) { runDemoBtn.disabled = false; return; }
+
+    loadPreRunRecipe(name, function () {
+      randomizeShift();
+      var ok = runMatchAndApply();
+      if (ok) renderGroundTruthBox();
+      resultCanvas.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (ok) setTimeout(startPathSimulation, 600); // let the scroll settle so the spray pass is seen
+      runDemoBtn.disabled = false;
+    });
+  }
+
+  runDemoBtn.addEventListener('click', runFullDemo);
 
   // ---------- language switching ----------
 

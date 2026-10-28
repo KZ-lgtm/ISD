@@ -206,3 +206,19 @@ ul.contour-list li.selected { border-color: var(--accent); background: #223047; 
 ul.contour-list li .badge { font-size: 0.72rem; color: var(--text-dim); }
 ul.contour-list li.empty { color: var(--text-dim); cursor: default; justify-content: flex-start; }
 ul.contour-list li.empty:hover { border-color: var(--border); }
+
+header.hero .intro {
+  max-width: 640px;
+  margin: 10px auto 14px;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+}
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 8px; font-size: 0.8rem; color: var(--text-dim); }
+.legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.legend .swatch { width: 22px; border-top: 3px solid var(--accent); }
+.legend .swatch.dashed { border-top: 3px dashed var(--danger); }
+
+@media (max-width: 600px) {
+  .lang-switch { position: static; justify-content: flex-end; margin-bottom: 10px; }
+}

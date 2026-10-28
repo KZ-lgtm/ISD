@@ -3,6 +3,9 @@
   "app.footer": "智慧噴塗展示 · 完全於用戶端執行，資料不會離開您的瀏覽器",
   "app.langEn": "EN",
   "app.langZh": "中文",
+  "app.intro": "工件只要稍微偏離治具，固定的噴塗路徑就會噴歪。本展示呈現解決方式：由相機偵測工件位移與旋轉的量，並在噴塗前將已儲存的噴塗路徑同步修正。",
+  "app.runDemo": "執行完整展示",
+  "app.demoRecipeName": "示範",
 
   "combine.heading": "組合 — 建立配方",
   "combine.step1": "1. 載入參考照片",
@@ -40,6 +43,8 @@
   "combine.statusEnterName": "請先輸入配方名稱。",
   "combine.statusNeedPath": "請先產生至少一條路徑再儲存。",
   "combine.statusSaved": "已儲存配方「{name}」。",
+  "combine.statusStorageFull": "瀏覽器儲存空間已滿，請刪除舊配方後再試。",
+  "combine.confirmOverwrite": "已有名為「{name}」的配方，要覆寫嗎？",
   "combine.statusLoaded": "已載入配方「{name}」。",
   "combine.statusDeleted": "已刪除配方「{name}」。",
 
@@ -88,6 +93,8 @@
   "prerun.groundError": "誤差：({ex}, {ey}) px，{et} 度。",
 
   "corrected.heading": "修正後路徑",
+  "corrected.legendOriginal": "原始配方路徑",
+  "corrected.legendCorrected": "修正後路徑",
 
   "sim.heading": "路徑模擬",
   "sim.sprayColor": "噴塗顏色",
