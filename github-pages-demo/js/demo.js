@@ -4,6 +4,7 @@
   // ---------- i18n ----------
 
   var LANG_KEY = 'ispDemoLang';
+  var ASSET_VERSION = '3'; // keep in sync with the ?v= on index.html's css/js links; bump on every change so browsers fetch matching files
   var dictionaries = {};
   var currentLang = localStorage.getItem(LANG_KEY) ||
     ((navigator.language || '').indexOf('zh') === 0 ? 'zh-TW' : 'en');
@@ -21,8 +22,8 @@
 
   function loadDictionaries() {
     return Promise.all([
-      fetch('i18n/en.json').then(function (r) { return r.json(); }),
-      fetch('i18n/zh-TW.json').then(function (r) { return r.json(); })
+      fetch('i18n/en.json?v=' + ASSET_VERSION).then(function (r) { return r.json(); }),
+      fetch('i18n/zh-TW.json?v=' + ASSET_VERSION).then(function (r) { return r.json(); })
     ]).then(function (results) {
       dictionaries.en = results[0];
       dictionaries['zh-TW'] = results[1];
@@ -300,7 +301,9 @@
 
   // ---------- DOM refs ----------
 
-  var runDemoBtn = document.getElementById('runDemoBtn');
+  // A detached stand-in if the page is an older cached index.html without this button,
+  // so a stale page/script mix still loads instead of failing at startup.
+  var runDemoBtn = document.getElementById('runDemoBtn') || document.createElement('button');
 
   var combineCanvas = document.getElementById('combineCanvas');
   var combineCtx = combineCanvas.getContext('2d');
