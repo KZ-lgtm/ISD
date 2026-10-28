@@ -3,6 +3,9 @@
   "app.footer": "Intelligent Spray demo · runs entirely client-side, no data leaves your browser",
   "app.langEn": "EN",
   "app.langZh": "中文",
+  "app.intro": "When a part sits slightly off its fixture, a fixed spray path misses. This demo shows the fix: the camera finds how far the part moved and rotated, and the saved spray path is shifted to match before spraying.",
+  "app.runDemo": "Run full demo",
+  "app.demoRecipeName": "Demo",
 
   "combine.heading": "Combine — Build a Recipe",
   "combine.step1": "1. Load a reference photo",
@@ -90,6 +93,8 @@
   "prerun.groundError": "Error: ({ex}, {ey}) px, {et} deg.",
 
   "corrected.heading": "Corrected Path",
+  "corrected.legendOriginal": "Original recipe path",
+  "corrected.legendCorrected": "Corrected path",
 
   "sim.heading": "Path Simulation",
   "sim.sprayColor": "Spray color",

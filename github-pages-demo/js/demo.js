@@ -300,6 +300,8 @@
 
   // ---------- DOM refs ----------
 
+  var runDemoBtn = document.getElementById('runDemoBtn');
+
   var combineCanvas = document.getElementById('combineCanvas');
   var combineCtx = combineCanvas.getContext('2d');
   var combineFeaturePreview = document.getElementById('combineFeaturePreview');
@@ -610,21 +612,27 @@
     renderCombineCanvas();
   });
 
-  saveRecipeBtn.addEventListener('click', function () {
-    var name = recipeNameInput.value.trim();
-    if (!name) { setStatus(combineStatus, t('combine.statusEnterName'), 'err'); return; }
-    if (combineTiles.length === 0) { setStatus(combineStatus, t('combine.statusNeedPath'), 'err'); return; }
+  /** Saves the current Combine layout as recipe `name`; returns true on success. */
+  function saveCurrentRecipe(name, askBeforeOverwrite) {
+    if (!name) { setStatus(combineStatus, t('combine.statusEnterName'), 'err'); return false; }
+    if (combineTiles.length === 0) { setStatus(combineStatus, t('combine.statusNeedPath'), 'err'); return false; }
     var recipes = loadRecipes();
-    if (recipes[name] && !confirm(t('combine.confirmOverwrite', { name: name }))) return;
+    if (recipes[name] && askBeforeOverwrite && !confirm(t('combine.confirmOverwrite', { name: name }))) return false;
     recipes[name] = {
       image: combineRefCanvas.toDataURL('image/png'),
       featureRegion: combineFeatureRegion,
       tiles: combineTiles
     };
-    if (!saveRecipes(recipes)) { setStatus(combineStatus, t('combine.statusStorageFull'), 'err'); return; }
+    if (!saveRecipes(recipes)) { setStatus(combineStatus, t('combine.statusStorageFull'), 'err'); return false; }
     refreshRecipeSelects();
     combineRecipeSelect.value = name;
+    preRunRecipeSelect.value = name;
     setStatus(combineStatus, t('combine.statusSaved', { name: name }), 'ok');
+    return true;
+  }
+
+  saveRecipeBtn.addEventListener('click', function () {
+    saveCurrentRecipe(recipeNameInput.value.trim(), true);
   });
 
   combineLoadRecipeBtn.addEventListener('click', function () {
@@ -730,8 +738,8 @@
     });
   }
 
-  preRunLoadRecipeBtn.addEventListener('click', function () {
-    var name = preRunRecipeSelect.value;
+  /** Loads recipe `name` into Pre-run; calls onLoaded() once its photo has decoded. */
+  function loadPreRunRecipe(name, onLoaded) {
     var recipes = loadRecipes();
     var data = recipes[name];
     if (!data) return;
@@ -755,9 +763,12 @@
         setStatus(preRunFeatureStatus, t('prerun.featureNoRegion'));
       }
       setStatus(matchStatus, t('prerun.matchRecipeLoaded'));
+      if (onLoaded) onLoaded();
     };
     img.src = data.image;
-  });
+  }
+
+  preRunLoadRecipeBtn.addEventListener('click', function () { loadPreRunRecipe(preRunRecipeSelect.value); });
 
   function currentGroundTruthLabel(shiftX, shiftY, rotateDeg) {
     var rad = rotateDeg * Math.PI / 180;
@@ -791,7 +802,7 @@
     setStatus(matchStatus, t('prerun.matchSimGenerated'));
   }
 
-  randomizeShiftBtn.addEventListener('click', function () {
+  function randomizeShift() {
     simShiftX.value = Math.round((Math.random() * 2 - 1) * 70);
     simShiftY.value = Math.round((Math.random() * 2 - 1) * 50);
     simRotate.value = Math.round((Math.random() * 2 - 1) * 35);
@@ -799,7 +810,9 @@
     simShiftYVal.textContent = simShiftY.value;
     simRotateVal.textContent = simRotate.value;
     generateCurrent();
-  });
+  }
+
+  randomizeShiftBtn.addEventListener('click', randomizeShift);
 
   uploadCurrentInput.addEventListener('change', function (evt) {
     var file = evt.target.files && evt.target.files[0];
@@ -825,12 +838,14 @@
 
   matchBtn.disabled = true;
   combineFindContoursBtn.disabled = true;
+  runDemoBtn.disabled = true;
   setStatus(matchStatus, t('prerun.cvLoadingInitial'), 'busy');
   var cvPoll = setInterval(function () {
     if (isCvReady()) {
       clearInterval(cvPoll);
       matchBtn.disabled = false;
       combineFindContoursBtn.disabled = false;
+      runDemoBtn.disabled = false;
       setStatus(matchStatus, t('prerun.cvReady'), 'ok');
     }
   }, 250);
@@ -974,6 +989,7 @@
     }
   }
 
+  var ORIGINAL_PATH_COLOR = '#fc8181';
   var lastAppliedMatch = null;
   var lastAppliedStatusLabelKey = '';
   var lastAppliedPathPoints = [];
@@ -982,6 +998,12 @@
   function renderResultBase() {
     resultCtx.clearRect(0, 0, W, H);
     resultCtx.drawImage(preRunCurrentCanvas, 0, 0);
+    // the original (uncorrected) recipe path, faint and dashed, so the correction is visible at a glance
+    resultCtx.save();
+    resultCtx.globalAlpha = 0.75;
+    resultCtx.setLineDash([6, 5]);
+    preRunRecipe.tiles.forEach(function (tile) { drawTilePath(resultCtx, tile, ORIGINAL_PATH_COLOR); });
+    resultCtx.restore();
     var pts = [];
     preRunRecipe.tiles.forEach(function (tile) {
       pts = pts.concat(drawTransformedTilePath(resultCtx, tile, lastAppliedMatch, '#4fd1c5'));
@@ -1097,26 +1119,30 @@
   simTransparencyInput.addEventListener('input', function () { simTransparencyVal.textContent = simTransparencyInput.value; });
   simSpeedInput.addEventListener('input', function () { simSpeedVal.textContent = simSpeedInput.value; });
 
+  /** Runs the pattern match on the current image and, on success, shows the result and applies it to the path; returns true on success. */
+  function runMatchAndApply() {
+    var match = runMatch();
+    if (!match) return false;
+    lastMatch = match;
+    resultDx.textContent = match.dx.toFixed(1) + ' px';
+    resultDy.textContent = match.dy.toFixed(1) + ' px';
+    resultTheta.textContent = match.thetaDeg.toFixed(2) + ' deg';
+    resultInliers.textContent = match.inliers + ' / ' + match.totalMatches;
+    resultScore.textContent = (match.score * 100).toFixed(0) + '%';
+    resultInliers.className = 'v ' + (match.inliers >= 8 ? 'good' : '');
+    resultScore.className = 'v ' + (match.score >= 0.5 ? 'good' : '');
+    matchResultBox.style.display = 'block';
+    revealGroundTruthBtn.disabled = !groundTruth;
+    groundTruthBox.style.display = 'none';
+    applyMatchToPath(match, 'prerun.pathLabelMatched');
+    setStatus(matchStatus, t('prerun.matchApplied'), 'ok');
+    return true;
+  }
+
   matchBtn.addEventListener('click', function () {
     if (!preRunRecipe || preRunRecipe.tiles.length === 0) { setStatus(matchStatus, t('prerun.matchNeedPath'), 'err'); return; }
     setStatus(matchStatus, t('prerun.matchRunning'), 'busy');
-    setTimeout(function () {
-      var match = runMatch();
-      if (!match) return;
-      lastMatch = match;
-      resultDx.textContent = match.dx.toFixed(1) + ' px';
-      resultDy.textContent = match.dy.toFixed(1) + ' px';
-      resultTheta.textContent = match.thetaDeg.toFixed(2) + ' deg';
-      resultInliers.textContent = match.inliers + ' / ' + match.totalMatches;
-      resultScore.textContent = (match.score * 100).toFixed(0) + '%';
-      resultInliers.className = 'v ' + (match.inliers >= 8 ? 'good' : '');
-      resultScore.className = 'v ' + (match.score >= 0.5 ? 'good' : '');
-      matchResultBox.style.display = 'block';
-      revealGroundTruthBtn.disabled = !groundTruth;
-      groundTruthBox.style.display = 'none';
-      applyMatchToPath(match, 'prerun.pathLabelMatched');
-      setStatus(matchStatus, t('prerun.matchApplied'), 'ok');
-    }, 30);
+    setTimeout(runMatchAndApply, 30);
   });
 
   confirmPathBtn.addEventListener('click', function () {
@@ -1139,6 +1165,36 @@
   }
 
   revealGroundTruthBtn.addEventListener('click', renderGroundTruthBox);
+
+  // ---------- one-click full demo ----------
+
+  /** Walks the whole workflow with default settings: sample photo -> largest contour -> save recipe -> load in Pre-run -> random shift -> match -> reveal ground truth -> play the spray simulation. */
+  function runFullDemo() {
+    if (!isCvReady()) return;
+    runDemoBtn.disabled = true;
+    stopPathSimulation();
+
+    combineRefCanvas = makeWorkpieceCanvas(0, 0, 0);
+    combineResetLayout();
+    combineContourThreshold.value = 100; combineThresholdVal.textContent = '100';
+    combineMinArea.value = 20; combineMinAreaVal.textContent = '20';
+    runFindContours();
+
+    var name = t('app.demoRecipeName');
+    recipeNameInput.value = name;
+    if (!saveCurrentRecipe(name, false)) { runDemoBtn.disabled = false; return; }
+
+    loadPreRunRecipe(name, function () {
+      randomizeShift();
+      var ok = runMatchAndApply();
+      if (ok) renderGroundTruthBox();
+      resultCanvas.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (ok) setTimeout(startPathSimulation, 600); // let the scroll settle so the spray pass is seen
+      runDemoBtn.disabled = false;
+    });
+  }
+
+  runDemoBtn.addEventListener('click', runFullDemo);
 
   // ---------- language switching ----------
 
