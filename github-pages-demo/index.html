@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Intelligent Spray — Interactive Demo</title>
-<link rel="stylesheet" href="css/style.css?v=3">
+<link rel="stylesheet" href="css/style.css?v=4">
 </head>
 <body>
 
@@ -16,10 +16,75 @@
   <h1 data-i18n="app.title">Intelligent Spray — Interactive Demo</h1>
   <p class="intro" data-i18n="app.intro">When a part sits slightly off its fixture, a fixed spray path misses. This demo shows the fix: the camera finds how far the part moved and rotated, and the saved spray path is shifted to match before spraying.</p>
   <button id="runDemoBtn" class="primary" data-i18n="app.runDemo">Run full demo</button>
+  <div id="storageNote" class="hero-note"></div>
 </header>
 
 <main>
 
+  <!-- ===================== 0. Station setup ===================== -->
+  <section class="step-card">
+    <h2><span class="num">0</span> <span data-i18n="setup.heading">Station Setup</span></h2>
+    <p class="card-intro" data-i18n="setup.intro">Settings for this spray station, shared by every recipe. Saved automatically in this browser.</p>
+    <div class="setup-grid">
+
+      <div class="control-group">
+        <label class="group-title" data-i18n="setup.calibTitle">Camera calibration</label>
+        <label><span data-i18n="setup.mmPerPx">Scale (mm per pixel)</span>
+          <input type="number" id="mmPerPxInput" step="0.001" min="0.001"></label>
+        <div class="btn-row" style="margin-top:6px;">
+          <input type="number" id="knownSizeInput" step="0.1" min="0.1" data-i18n-placeholder="setup.knownSizePlaceholder" placeholder="Real width of selected contour (mm)" style="flex:1;min-width:150px;">
+          <button id="knownSizeBtn" data-i18n="setup.setFromContour">Set from contour</button>
+        </div>
+        <details style="margin-top:8px;">
+          <summary data-i18n="setup.camRobotTitle">Camera → robot alignment (point pairs)</summary>
+          <p class="hint" data-i18n="setup.camRobotHint">Jog the robot tool to 3+ marks visible in the photo and enter both positions. A least-squares fit gives the scale, rotation and axis flip between photo and robot.</p>
+          <table class="pairs-table">
+            <thead><tr><th data-i18n="setup.pairPx">Photo x,y (px)</th><th data-i18n="setup.pairRobot">Robot X,Y (mm)</th><th></th></tr></thead>
+            <tbody id="pairsBody"></tbody>
+          </table>
+          <div class="btn-row" style="margin-top:6px;">
+            <button id="addPairBtn" data-i18n="setup.addPair">Add pair</button>
+            <button id="fitPairsBtn" class="primary" data-i18n="setup.fitPairs">Compute alignment</button>
+            <button id="clearAlignBtn" class="secondary" data-i18n="setup.clearAlign">Clear alignment</button>
+          </div>
+        </details>
+        <div id="calibStatus" class="status-line" style="margin-top:8px;"></div>
+      </div>
+
+      <div class="control-group">
+        <label class="group-title" data-i18n="setup.tolTitle">Pass / fail limits</label>
+        <div class="field-grid">
+          <label data-i18n="setup.maxShift">Max part shift (mm)</label><input type="number" id="tolShift" step="1" min="0">
+          <label data-i18n="setup.maxRot">Max rotation (°)</label><input type="number" id="tolRot" step="0.5" min="0">
+          <label data-i18n="setup.maxScale">Max scale change (%)</label><input type="number" id="tolScale" step="0.5" min="0">
+          <label data-i18n="setup.minScore">Min confidence (%)</label><input type="number" id="tolScore" step="1" min="0" max="100">
+          <label data-i18n="setup.minInliers">Min inliers (ORB)</label><input type="number" id="tolInliers" step="1" min="0">
+          <label data-i18n="setup.minVerify">Min verification (0–1)</label><input type="number" id="tolVerify" step="0.05" min="0" max="1">
+          <label data-i18n="setup.accuracy">Accuracy target (mm)</label><input type="number" id="tolAccuracy" step="0.1" min="0">
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label class="group-title" data-i18n="setup.matchTitle">Matching</label>
+        <label data-i18n="setup.method">Method</label>
+        <select id="matchMethod" style="width:100%;">
+          <option value="auto" data-i18n="setup.methodAuto">Auto (ORB, template fallback)</option>
+          <option value="orb" data-i18n="setup.methodOrb">ORB features only</option>
+          <option value="template" data-i18n="setup.methodTemplate">Template only</option>
+        </select>
+        <label class="check"><input type="checkbox" id="claheInput"> <span data-i18n="setup.clahe">Contrast normalisation (CLAHE) for uneven lighting</span></label>
+        <label class="group-title" style="margin-top:10px;" data-i18n="setup.gunTitle">Spray gun</label>
+        <div class="field-grid">
+          <label data-i18n="setup.gunFlow">Flow at 100 % (ml/min)</label><input type="number" id="gunFlow" step="10" min="1">
+          <label data-i18n="setup.standoff">Standoff height (mm)</label><input type="number" id="standoff" step="5" min="0">
+          <label data-i18n="setup.targetFilm">Target film (µm)</label><input type="number" id="targetFilm" step="5" min="1">
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===================== 1. Combine ===================== -->
   <section class="step-card">
     <h2><span class="num">1</span> <span data-i18n="combine.heading">Combine — Build a Recipe</span></h2>
     <div class="row">
@@ -27,21 +92,29 @@
         <div class="canvas-wrap">
           <canvas id="combineCanvas" width="560" height="360"></canvas>
         </div>
-        <div class="feature-preview-wrap" style="margin-top:10px;">
-          <canvas id="combineFeaturePreview" width="560" height="360"></canvas>
-          <span id="combineFeatureStatus" data-i18n="combine.noFeatureRegion">No feature region selected</span>
+        <div class="legend">
+          <span><span class="swatch" style="border-color:#4fd1c5"></span><span data-i18n="legend.outline">Part outline (path source)</span></span>
+          <span><span class="swatch dashed" style="border-color:#f6ad55"></span><span data-i18n="legend.feature">Feature region</span></span>
+          <span><span class="swatch" style="border-color:#fc8181"></span><span data-i18n="legend.keepOut">Keep-out</span></span>
+          <span><span class="swatch" style="border-color:#63b3ed"></span><span data-i18n="legend.gunOn">Spray path (gun on)</span></span>
+          <span><span class="swatch dotted" style="border-color:#93a0bd"></span><span data-i18n="legend.gunOff">Gun-off move</span></span>
         </div>
+        <div id="combineFeatureStrip" class="feature-strip"></div>
       </div>
       <div class="controls">
         <div class="control-group">
           <label data-i18n="combine.step1">1. Load a reference photo</label>
           <div class="btn-row">
-            <input type="file" id="combineImageUpload" accept="image/*" style="flex:1;min-width:140px;">
+            <select id="sampleSelect" style="flex:1;">
+              <option value="A" data-i18n="combine.sampleA">Sample A — panel</option>
+              <option value="B" data-i18n="combine.sampleB">Sample B — bracket</option>
+            </select>
             <button id="resetSyntheticImageBtn" class="secondary" data-i18n="combine.useSample">Use sample photo</button>
           </div>
+          <input type="file" id="combineImageUpload" accept="image/*" style="margin-top:6px;width:100%;">
         </div>
         <div class="control-group">
-          <label data-i18n="combine.step2">2. Find a contour to use as the feature region</label>
+          <label data-i18n="combine.step2">2. Find contours and give them roles</label>
           <label style="margin-top:2px;"><span data-i18n="combine.thresholdLabel">Threshold:</span> <span id="combineThresholdVal">100</span></label>
           <input type="range" id="combineContourThreshold" min="0" max="255" value="100">
           <label style="margin-top:8px;"><span data-i18n="combine.minAreaLabel">Min contour size:</span> <span id="combineMinAreaVal">20</span> px²</label>
@@ -49,22 +122,34 @@
           <div class="btn-row" style="margin-top:6px;">
             <button id="combineFindContoursBtn" data-i18n="combine.findContours">Find contours</button>
           </div>
+          <p class="hint" data-i18n="combine.rolesHint">Outline = the part to spray (also the main feature). Feature = extra region used for matching. Keep-out = never spray (holes are added automatically).</p>
           <ul class="contour-list" id="combineContourList"></ul>
         </div>
         <div class="control-group">
-          <label data-i18n="combine.step3">3. Auto-generate the spray path</label>
-          <div class="btn-row">
-            <button id="pathModeFollowBtn" class="mode-btn active" data-i18n="combine.followContour">Follow contour</button>
-            <button id="pathModeFillBtn" class="mode-btn" data-i18n="combine.fillZigzag">Fill (zigzag)</button>
+          <label data-i18n="combine.step3">3. Spray program</label>
+          <div class="field-grid">
+            <label data-i18n="prog.width">Spray width (mm)</label><input type="number" id="progWidth" step="1" min="1">
+            <label data-i18n="prog.overlap">Overlap (%)</label><input type="number" id="progOverlap" step="5" min="0" max="90">
+            <label data-i18n="prog.edgeOffset">Edge offset (mm, + = outward)</label><input type="number" id="progEdgeOffset" step="1">
+            <label data-i18n="prog.lead">Lead-in / lead-out (mm)</label><input type="number" id="progLead" step="1" min="0">
+            <label data-i18n="prog.angle">Fill direction (°)</label><input type="number" id="progAngle" step="5">
           </div>
-          <div id="fillDistanceRow" style="display:none;margin-top:8px;">
-            <label><span data-i18n="combine.fillSpacingLabel">Fill spacing:</span> <span id="combineFillDistanceVal">20</span> px</label>
-            <input type="range" id="combineFillDistance" min="6" max="60" step="2" value="20">
-          </div>
-          <label style="margin-top:8px;"><span data-i18n="combine.pointSizeLabel">Mark point size:</span> <span id="pathPointSizeVal">3.5</span> px</label>
-          <input type="range" id="pathPointSizeInput" min="1" max="10" step="0.5" value="3.5">
-          <label style="margin-top:8px;"><span data-i18n="combine.lineWidthLabel">Line width:</span> <span id="pathLineWidthVal">3</span> px</label>
-          <input type="range" id="pathLineWidthInput" min="1" max="10" step="0.5" value="3">
+          <table class="pass-table">
+            <thead><tr><th data-i18n="prog.pass">Pass</th><th data-i18n="prog.on">On</th><th data-i18n="prog.speed">Speed (mm/s)</th><th data-i18n="prog.flow">Flow (%)</th></tr></thead>
+            <tbody>
+              <tr><td data-i18n="prog.passEdge">Edge (follow outline)</td><td><input type="checkbox" id="passEdgeOn"></td><td><input type="number" id="passEdgeSpeed" step="10" min="10"></td><td><input type="number" id="passEdgeFlow" step="5" min="0" max="100"></td></tr>
+              <tr><td data-i18n="prog.passFill">Fill (zigzag)</td><td><input type="checkbox" id="passFillOn"></td><td><input type="number" id="passFillSpeed" step="10" min="10"></td><td><input type="number" id="passFillFlow" step="5" min="0" max="100"></td></tr>
+              <tr><td data-i18n="prog.passCross">Cross-hatch (2nd coat, +90°)</td><td><input type="checkbox" id="passCrossOn"></td><td><input type="number" id="passCrossSpeed" step="10" min="10"></td><td><input type="number" id="passCrossFlow" step="5" min="0" max="100"></td></tr>
+            </tbody>
+          </table>
+          <div id="programStats" class="hint" style="margin-top:6px;"></div>
+          <details style="margin-top:6px;">
+            <summary data-i18n="combine.displayOptions">Display options</summary>
+            <label style="margin-top:6px;"><span data-i18n="combine.pointSizeLabel">Mark point size:</span> <span id="pathPointSizeVal">2</span> px</label>
+            <input type="range" id="pathPointSizeInput" min="0" max="8" step="0.5" value="2">
+            <label style="margin-top:6px;"><span data-i18n="combine.lineWidthLabel">Line width:</span> <span id="pathLineWidthVal">2</span> px</label>
+            <input type="range" id="pathLineWidthInput" min="1" max="8" step="0.5" value="2">
+          </details>
         </div>
         <div class="control-group">
           <label data-i18n="combine.step4">4. Save / load recipe</label>
@@ -77,24 +162,50 @@
             <button id="combineLoadRecipeBtn" data-i18n="combine.load">Load</button>
             <button id="combineDeleteRecipeBtn" class="warn" data-i18n="combine.delete">Delete</button>
           </div>
+          <div class="btn-row" style="margin-top:8px;">
+            <button id="exportRecipeBtn" data-i18n="combine.exportOne">Export recipe</button>
+            <button id="exportAllRecipesBtn" data-i18n="combine.exportAll">Export all</button>
+            <label class="file-btn"><span data-i18n="combine.import">Import…</span><input type="file" id="importRecipesInput" accept=".json,application/json"></label>
+          </div>
         </div>
         <div id="combineStatus" class="status-line"></div>
       </div>
     </div>
   </section>
 
+  <!-- ===================== 2. Pre-run ===================== -->
   <section class="step-card">
     <h2><span class="num">2</span> <span data-i18n="prerun.heading">Pre-run — Match & Correct</span></h2>
-
     <div class="row">
       <div class="canvas-col">
         <div class="canvas-wrap">
           <canvas id="preRunRecipeCanvas" width="560" height="360"></canvas>
         </div>
-        <div class="feature-preview-wrap" style="margin-top:10px;">
-          <canvas id="preRunFeaturePreview" width="560" height="360"></canvas>
-          <span id="preRunFeatureStatus" data-i18n="prerun.noRecipeLoaded">No recipe loaded</span>
+        <div id="preRunFeatureStatus" class="hint" data-i18n="prerun.noRecipeLoaded">No recipe loaded</div>
+        <div class="control-group" id="verdictBox" style="display:none;margin-top:10px;">
+          <div id="verdictBanner" class="verdict"></div>
+          <ul id="verdictChecks" class="check-list"></ul>
+          <div class="btn-row" style="margin-top:8px;">
+            <button id="overrideBtn" class="warn" style="display:none;" data-i18n="prerun.override">Override &amp; apply anyway</button>
+          </div>
         </div>
+        <details class="control-group" id="benchmarkBox" style="margin-top:10px;">
+          <summary data-i18n="bench.title">Accuracy test (run many random shifts)</summary>
+          <p class="hint" data-i18n="bench.hint">Moves the part randomly within the slider ranges, runs the match each time and compares it with the true position. Uses the stress settings and matching options currently selected.</p>
+          <div class="btn-row">
+            <label style="display:flex;align-items:center;gap:6px;"><span data-i18n="bench.trials">Trials</span> <input type="number" id="benchTrials" value="30" min="5" max="500" step="5" style="width:80px;"></label>
+            <label class="check" style="margin:0;"><input type="checkbox" id="benchScale"> <span data-i18n="bench.includeScale">Include ±3 % scale</span></label>
+            <button id="benchRunBtn" class="primary" data-i18n="bench.run">Run test</button>
+            <button id="benchStopBtn" class="secondary" disabled data-i18n="bench.stop">Stop</button>
+          </div>
+          <progress id="benchProgress" value="0" max="1" style="width:100%;margin-top:8px;display:none;"></progress>
+          <div id="benchSummary" class="stat-grid" style="margin-top:8px;"></div>
+          <div class="chart-wrap" style="margin-top:8px;">
+            <canvas id="benchChart" width="520" height="190"></canvas>
+            <div class="chart-tip" id="benchTip"></div>
+          </div>
+          <details style="margin-top:6px;"><summary data-i18n="bench.table">Table view</summary><div id="benchTable" class="table-scroll"></div></details>
+        </details>
       </div>
       <div class="controls">
         <div class="control-group">
@@ -103,6 +214,10 @@
             <select id="preRunRecipeSelect" style="flex:1;"></select>
             <button id="preRunLoadRecipeBtn" data-i18n="prerun.load">Load</button>
           </div>
+          <div class="btn-row" style="margin-top:6px;">
+            <button id="identifyBtn" class="secondary" data-i18n="prerun.identify">Identify part (try all recipes)</button>
+          </div>
+          <div id="identifyResult" class="hint"></div>
         </div>
         <div class="control-group">
           <label data-i18n="prerun.simulateLabel">Simulate the workpiece shifting (ground truth — hidden until you reveal it)</label>
@@ -110,11 +225,28 @@
           <input type="range" id="simShiftX" min="-80" max="80" value="0">
           <label><span data-i18n="prerun.yShift">Y shift:</span> <span id="simShiftYVal">0</span> px</label>
           <input type="range" id="simShiftY" min="-60" max="60" value="0">
-          <label><span data-i18n="prerun.rotation">Rotation:</span> <span id="simRotateVal">0</span> deg</label>
+          <label><span data-i18n="prerun.rotation">Rotation:</span> <span id="simRotateVal">0</span> °</label>
           <input type="range" id="simRotate" min="-45" max="45" value="0">
+          <label><span data-i18n="prerun.scale">Scale (height change):</span> <span id="simScaleVal">100</span> %</label>
+          <input type="range" id="simScale" min="90" max="110" step="0.5" value="100">
           <div class="btn-row" style="margin-top:8px;">
             <button id="randomizeShiftBtn" class="primary" data-i18n="prerun.randomize">Randomize</button>
           </div>
+          <details style="margin-top:8px;">
+            <summary data-i18n="stress.title">Stress test: lighting, noise, blur, covered feature</summary>
+            <label><span data-i18n="stress.brightness">Brightness:</span> <span id="stressBrightnessVal">0</span> %</label>
+            <input type="range" id="stressBrightness" min="-60" max="60" step="5" value="0">
+            <label><span data-i18n="stress.contrast">Contrast:</span> <span id="stressContrastVal">100</span> %</label>
+            <input type="range" id="stressContrast" min="40" max="160" step="5" value="100">
+            <label><span data-i18n="stress.noise">Noise:</span> <span id="stressNoiseVal">0</span></label>
+            <input type="range" id="stressNoise" min="0" max="40" step="2" value="0">
+            <label><span data-i18n="stress.blur">Blur:</span> <span id="stressBlurVal">0</span> px</label>
+            <input type="range" id="stressBlur" min="0" max="6" step="0.5" value="0">
+            <label><span data-i18n="stress.glare">Glare:</span> <span id="stressGlareVal">0</span> %</label>
+            <input type="range" id="stressGlare" min="0" max="100" step="5" value="0">
+            <label><span data-i18n="stress.cover">Main feature covered:</span> <span id="stressCoverVal">0</span> %</label>
+            <input type="range" id="stressCover" min="0" max="100" step="5" value="0">
+          </details>
         </div>
         <div class="control-group">
           <label data-i18n="prerun.useRealPhoto">...or use a real photo instead</label>
@@ -129,11 +261,14 @@
         <div class="control-group" id="matchResultBox" style="display:none;">
           <label data-i18n="prerun.matchResult">Match result</label>
           <div class="match-result-grid">
-            <span class="k" data-i18n="prerun.detShiftX">Detected shift X</span><span class="v" id="resultDx">-</span>
-            <span class="k" data-i18n="prerun.detShiftY">Detected shift Y</span><span class="v" id="resultDy">-</span>
+            <span class="k" data-i18n="prerun.partShift">Part moved (X, Y)</span><span class="v" id="resultShift">-</span>
             <span class="k" data-i18n="prerun.detRotation">Detected rotation</span><span class="v" id="resultTheta">-</span>
+            <span class="k" data-i18n="prerun.detScale">Detected scale</span><span class="v" id="resultScale">-</span>
+            <span class="k" data-i18n="prerun.method">Method</span><span class="v" id="resultMethod">-</span>
             <span class="k" data-i18n="prerun.inliersMatches">Inliers / matches</span><span class="v" id="resultInliers">-</span>
+            <span class="k" data-i18n="prerun.features">Feature regions found</span><span class="v" id="resultFeatures">-</span>
             <span class="k" data-i18n="prerun.confidenceScore">Confidence score</span><span class="v" id="resultScore">-</span>
+            <span class="k" data-i18n="prerun.verify">Verification (photo vs recipe)</span><span class="v" id="resultVerify">-</span>
           </div>
           <div class="btn-row" style="margin-top:10px;">
             <button id="revealGroundTruthBtn" class="secondary" data-i18n="prerun.revealActualShift">Reveal actual shift</button>
@@ -145,37 +280,119 @@
     </div>
   </section>
 
-  <section class="step-card">
-    <h2><span class="num">3</span> <span data-i18n="corrected.heading">Corrected Path</span></h2>
+  <!-- ===================== 3. Corrected path + simulation ===================== -->
+  <section class="step-card" id="resultSection">
+    <h2><span class="num">3</span> <span data-i18n="corrected.heading">Corrected Path &amp; Spray Simulation</span></h2>
     <div class="row">
       <div class="canvas-col">
         <div class="canvas-wrap">
           <canvas id="resultCanvas" width="560" height="360"></canvas>
         </div>
-        <div class="legend">
-          <span><span class="swatch dashed"></span><span data-i18n="corrected.legendOriginal">Original recipe path</span></span>
+        <div class="legend" id="pathLegend">
+          <span><span class="swatch dashed" style="border-color:#fc8181"></span><span data-i18n="corrected.legendOriginal">Original recipe path</span></span>
           <span><span class="swatch"></span><span data-i18n="corrected.legendCorrected">Corrected path</span></span>
+          <span><span class="swatch dotted" style="border-color:#93a0bd"></span><span data-i18n="legend.gunOff">Gun-off move</span></span>
+        </div>
+        <div class="film-legend" id="filmLegend" style="display:none;">
+          <canvas id="filmLegendCanvas" width="300" height="12"></canvas>
+          <div class="film-legend-labels"><span id="filmL0">0</span><span id="filmL1">-</span><span id="filmL2">-</span><span id="filmL3">-</span></div>
+          <div class="hint" data-i18n="sim.filmLegendHint">Blue = too thin · grey = on target · red = too thick</div>
+        </div>
+        <div id="metricsBox" class="stat-grid" style="margin-top:10px;"></div>
+      </div>
+      <div class="controls">
+        <div class="control-group">
+          <label data-i18n="sim.heading">Spray simulation</label>
+          <div class="btn-row">
+            <button id="viewPathBtn" class="mode-btn active" data-i18n="sim.viewPath">Path</button>
+            <button id="viewTrailBtn" class="mode-btn" data-i18n="sim.viewTrail">Paint</button>
+            <button id="viewFilmBtn" class="mode-btn" data-i18n="sim.viewFilm">Film thickness</button>
+          </div>
+          <label style="margin-top:8px;"><span data-i18n="sim.playback">Playback speed:</span> ×<span id="simPlaybackVal">8</span></label>
+          <input type="range" id="simPlayback" min="1" max="40" step="1" value="8">
+          <label data-i18n="sim.sprayColor">Paint colour</label>
+          <input type="color" id="simColorInput" value="#2e7d4f" style="width:100%;height:34px;padding:2px;">
+          <label style="margin-top:8px;"><span data-i18n="sim.opacity">Paint opacity:</span> <span id="simOpacityVal">85</span>%</label>
+          <input type="range" id="simOpacityInput" min="20" max="100" step="5" value="85">
+          <label class="check"><input type="checkbox" id="simClog"> <span data-i18n="sim.clog">Simulate a clogged nozzle (for inspection)</span></label>
+          <div class="btn-row" style="margin-top:10px;">
+            <button id="simPlayBtn" class="primary" disabled data-i18n="sim.play">Play</button>
+            <button id="simStopBtn" class="secondary" disabled data-i18n="sim.stop">Stop</button>
+            <button id="simInstantBtn" disabled data-i18n="sim.instant">Show final result</button>
+          </div>
+        </div>
+        <div id="simStatus" class="status-line" data-i18n="sim.statusInitial">Apply a matched or confirmed path above to enable simulation.</div>
+        <div class="control-group">
+          <label data-i18n="export.title">Export corrected path</label>
+          <p class="hint" id="exportFrameHint"></p>
+          <div class="btn-row">
+            <button class="export-btn" data-format="csv" disabled>CSV</button>
+            <button class="export-btn" data-format="json" disabled>JSON</button>
+            <button class="export-btn" data-format="rapid" disabled>ABB RAPID</button>
+            <button class="export-btn" data-format="krl" disabled>KUKA KRL</button>
+            <button class="export-btn" data-format="fanuc" disabled>FANUC .LS</button>
+          </div>
+          <p class="hint" data-i18n="export.warning">Robot programs are templates: verify tool orientation, frames and I/O on a simulator before running on a real robot.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 4. Inspection ===================== -->
+  <section class="step-card" id="inspectSection">
+    <h2><span class="num">4</span> <span data-i18n="inspect.heading">Post-spray Inspection</span></h2>
+    <div class="row">
+      <div class="canvas-col">
+        <div class="canvas-wrap">
+          <canvas id="inspectCanvas" width="560" height="360"></canvas>
+        </div>
+        <div class="legend">
+          <span><span class="swatch fill" style="background:#d03b3b"></span><span data-i18n="inspect.legendMissed">Missed (expected paint, none found)</span></span>
+          <span><span class="swatch fill" style="background:#ec835a"></span><span data-i18n="inspect.legendThin">Thin film</span></span>
+          <span><span class="swatch fill" style="background:#fab219"></span><span data-i18n="inspect.legendExtra">Unexpected paint / paint in keep-out</span></span>
         </div>
       </div>
       <div class="controls">
         <div class="control-group">
-          <label data-i18n="sim.heading">Path Simulation</label>
-          <label data-i18n="sim.sprayColor">Spray color</label>
-          <input type="color" id="simColorInput" value="#f6ad55" style="width:100%;height:34px;padding:2px;">
-          <label style="margin-top:8px;"><span data-i18n="sim.sizeLabel">Spray size:</span> <span id="simSizeVal">14</span> px</label>
-          <input type="range" id="simSizeInput" min="4" max="40" step="2" value="14">
-          <label style="margin-top:8px;"><span data-i18n="sim.transparency">Transparency:</span> <span id="simTransparencyVal">35</span>%</label>
-          <input type="range" id="simTransparencyInput" min="5" max="100" step="5" value="35">
-          <label style="margin-top:8px;"><span data-i18n="sim.speed">Speed:</span> <span id="simSpeedVal">200</span> px/s</label>
-          <input type="range" id="simSpeedInput" min="20" max="800" step="20" value="200">
-          <div class="btn-row" style="margin-top:10px;">
-            <button id="simPlayBtn" class="primary" disabled data-i18n="sim.play">Play</button>
-            <button id="simStopBtn" class="secondary" disabled data-i18n="sim.stop">Stop</button>
+          <label data-i18n="inspect.afterPhoto">After-spray photo</label>
+          <p class="hint" data-i18n="inspect.hint">The camera takes a second photo after spraying, from the same position. Paint is found by comparing it with the before-photo, then checked against the simulated coverage.</p>
+          <div class="btn-row">
+            <button id="inspectSimBtn" disabled data-i18n="inspect.useSimulated">Use simulated after-photo</button>
+          </div>
+          <input type="file" id="inspectUpload" accept="image/*" style="margin-top:6px;width:100%;">
+          <label style="margin-top:8px;"><span data-i18n="inspect.sensitivity">Thin-film tolerance:</span> <span id="inspectThreshVal">35</span> %</label>
+          <input type="range" id="inspectThresh" min="10" max="80" step="5" value="35">
+          <div class="btn-row" style="margin-top:8px;">
+            <button id="inspectRunBtn" class="primary" disabled data-i18n="inspect.run">Inspect</button>
           </div>
         </div>
-        <div id="simStatus" class="status-line" data-i18n="sim.statusInitial">Apply a matched or confirmed path above to enable simulation.</div>
+        <div id="inspectVerdict" class="verdict" style="display:none;"></div>
+        <div id="inspectStats" class="stat-grid"></div>
+        <div id="inspectStatus" class="status-line" data-i18n="inspect.statusInitial">Run the spray simulation first.</div>
       </div>
     </div>
+  </section>
+
+  <!-- ===================== 5. Cycle log ===================== -->
+  <section class="step-card" id="logSection">
+    <h2><span class="num">5</span> <span data-i18n="log.heading">Cycle Log &amp; Trend</span></h2>
+    <p class="card-intro" data-i18n="log.intro">Every pre-run is logged. A steady drift in the measured offsets usually means the fixture is wearing or has been knocked.</p>
+    <div id="driftBox"></div>
+    <div class="trend-grid">
+      <div class="chart-wrap"><div class="chart-title" data-i18n="log.chartX">Part shift X (mm)</div><canvas class="trend-chart" data-series="x" width="340" height="150"></canvas><div class="chart-tip"></div></div>
+      <div class="chart-wrap"><div class="chart-title" data-i18n="log.chartY">Part shift Y (mm)</div><canvas class="trend-chart" data-series="y" width="340" height="150"></canvas><div class="chart-tip"></div></div>
+      <div class="chart-wrap"><div class="chart-title" data-i18n="log.chartRot">Rotation (°)</div><canvas class="trend-chart" data-series="rot" width="340" height="150"></canvas><div class="chart-tip"></div></div>
+    </div>
+    <div class="legend">
+      <span><span class="swatch dot" style="background:#3987e5"></span><span data-i18n="log.legendPass">Accepted cycle</span></span>
+      <span><span class="swatch dot" style="background:#d03b3b"></span><span data-i18n="log.legendFail">Rejected or overridden</span></span>
+      <span><span class="swatch dashed" style="border-color:#898781"></span><span data-i18n="log.legendTol">Pass/fail limit</span></span>
+    </div>
+    <div class="btn-row" style="margin:10px 0;">
+      <button id="logExportBtn" data-i18n="log.export">Export CSV</button>
+      <button id="logClearBtn" class="warn" data-i18n="log.clear">Clear log</button>
+    </div>
+    <div class="table-scroll"><table class="log-table" id="logTable"></table></div>
   </section>
 
 </main>
@@ -184,7 +401,10 @@
   Intelligent Spray demo &middot; runs entirely client-side, no data leaves your browser
 </footer>
 
-<script src="lib/opencv/opencv.js"></script>
-<script src="js/demo.js?v=3"></script>
+<script async src="lib/opencv/opencv.js"></script>
+<script src="js/core.js?v=4"></script>
+<script src="js/store.js?v=4"></script>
+<script src="js/vision.js?v=4"></script>
+<script src="js/demo.js?v=4"></script>
 </body>
 </html>
