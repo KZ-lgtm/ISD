@@ -266,8 +266,15 @@
   function loadRecipes() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch (e) { return {}; }
   }
+  /** Returns false (instead of throwing) when the browser's storage quota is exceeded. */
   function saveRecipes(recipes) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(recipes));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(recipes));
+      return true;
+    } catch (e) {
+      console.error('Failed to save recipes:', e);
+      return false;
+    }
   }
   function refreshRecipeSelects() {
     var recipes = loadRecipes();
@@ -608,12 +615,13 @@
     if (!name) { setStatus(combineStatus, t('combine.statusEnterName'), 'err'); return; }
     if (combineTiles.length === 0) { setStatus(combineStatus, t('combine.statusNeedPath'), 'err'); return; }
     var recipes = loadRecipes();
+    if (recipes[name] && !confirm(t('combine.confirmOverwrite', { name: name }))) return;
     recipes[name] = {
       image: combineRefCanvas.toDataURL('image/png'),
       featureRegion: combineFeatureRegion,
       tiles: combineTiles
     };
-    saveRecipes(recipes);
+    if (!saveRecipes(recipes)) { setStatus(combineStatus, t('combine.statusStorageFull'), 'err'); return; }
     refreshRecipeSelects();
     combineRecipeSelect.value = name;
     setStatus(combineStatus, t('combine.statusSaved', { name: name }), 'ok');
@@ -652,7 +660,7 @@
     var recipes = loadRecipes();
     if (!recipes[name]) return;
     delete recipes[name];
-    saveRecipes(recipes);
+    saveRecipes(recipes); // a delete only shrinks storage, so it can't hit the quota
     refreshRecipeSelects();
     setStatus(combineStatus, t('combine.statusDeleted', { name: name }));
   });
@@ -663,12 +671,39 @@
   var groundTruth = null;
   var lastMatch = null;
 
+  // The clean "current" camera image (simulated shift or uploaded photo), kept apart from
+  // preRunRecipeCanvas so matching and the step-3 background never see drawn overlays.
+  var preRunCurrentCanvas = document.createElement('canvas');
+  preRunCurrentCanvas.width = W; preRunCurrentCanvas.height = H;
+  var preRunCurrentCtx = preRunCurrentCanvas.getContext('2d');
+  var preRunCurrentIsRecipe = false; // true while the current image is the unshifted recipe photo
+
+  /** Shows the current image; the recipe's path + feature region are overlaid only while it is the unshifted recipe photo, where they line up. */
   function renderPreRunRecipeCanvas() {
     preRunRecipeCtx.clearRect(0, 0, W, H);
     if (!preRunRecipe) return;
-    preRunRecipeCtx.drawImage(preRunRecipe.imageObj, 0, 0, W, H);
+    preRunRecipeCtx.drawImage(preRunCurrentCanvas, 0, 0);
+    if (!preRunCurrentIsRecipe) return;
     preRunRecipe.tiles.forEach(function (tile) { drawTilePath(preRunRecipeCtx, tile); });
     drawFeatureRect(preRunRecipeCtx, preRunRecipe.featureRegion, '#f6ad55');
+  }
+
+  function resetSimSliders() {
+    simShiftX.value = 0; simShiftY.value = 0; simRotate.value = 0;
+    simShiftXVal.textContent = '0'; simShiftYVal.textContent = '0'; simRotateVal.textContent = '0';
+  }
+
+  /** Discards the previous match and step-3 result, since they no longer describe the current image. */
+  function clearMatchState() {
+    stopPathSimulation();
+    lastMatch = null;
+    lastAppliedMatch = null;
+    lastAppliedPathPoints = [];
+    matchResultBox.style.display = 'none';
+    groundTruthBox.style.display = 'none';
+    resultCtx.clearRect(0, 0, W, H);
+    simPlayBtn.disabled = true;
+    setStatus(simStatus, t('sim.statusInitial'));
   }
 
   /** Draws the recipe's feature-region crop at native size, plus its saved contour path (if any) overlaid in the same coordinate space. */
@@ -703,6 +738,14 @@
     var img = new Image();
     img.onload = function () {
       preRunRecipe = { imageObj: img, featureRegion: data.featureRegion || null, tiles: (data.tiles || []).slice() };
+      if (generateCurrentDebounce) clearTimeout(generateCurrentDebounce);
+      uploadCurrentInput.value = '';
+      resetSimSliders();
+      preRunCurrentCtx.clearRect(0, 0, W, H);
+      preRunCurrentCtx.drawImage(img, 0, 0, W, H);
+      preRunCurrentIsRecipe = true;
+      groundTruth = currentGroundTruthLabel(0, 0, 0);
+      clearMatchState();
       renderPreRunRecipeCanvas();
       if (preRunRecipe.featureRegion) {
         preRunRenderFeaturePreview();
@@ -712,8 +755,6 @@
         setStatus(preRunFeatureStatus, t('prerun.featureNoRegion'));
       }
       setStatus(matchStatus, t('prerun.matchRecipeLoaded'));
-      matchResultBox.style.display = 'none';
-      resultCtx.clearRect(0, 0, W, H);
     };
     img.src = data.image;
   });
@@ -741,11 +782,12 @@
   function generateCurrent() {
     if (!preRunRecipe) { setStatus(matchStatus, t('prerun.matchLoadFirst'), 'err'); return; }
     var sx = parseFloat(simShiftX.value), sy = parseFloat(simShiftY.value), rot = parseFloat(simRotate.value);
-    drawShiftedImage(preRunRecipeCtx, preRunRecipe.imageObj, sx, sy, rot);
+    uploadCurrentInput.value = ''; // moving the sliders switches back from an uploaded photo to the simulated one
+    drawShiftedImage(preRunCurrentCtx, preRunRecipe.imageObj, sx, sy, rot);
+    preRunCurrentIsRecipe = false;
     groundTruth = currentGroundTruthLabel(sx, sy, rot);
-    matchResultBox.style.display = 'none';
-    groundTruthBox.style.display = 'none';
-    resultCtx.clearRect(0, 0, W, H);
+    clearMatchState();
+    renderPreRunRecipeCanvas();
     setStatus(matchStatus, t('prerun.matchSimGenerated'));
   }
 
@@ -763,11 +805,14 @@
     var file = evt.target.files && evt.target.files[0];
     if (!file) return;
     loadFileAsImage(file, function (img) {
-      fitImageIntoCanvas(img, preRunRecipeCanvas);
+      if (generateCurrentDebounce) clearTimeout(generateCurrentDebounce);
+      fitImageIntoCanvas(img, preRunCurrentCanvas);
+      preRunCurrentIsRecipe = false;
+      resetSimSliders(); // the sliders don't describe an uploaded photo
       groundTruth = null;
-      matchResultBox.style.display = 'none';
-      groundTruthBox.style.display = 'none';
-      resultCtx.clearRect(0, 0, W, H);
+      clearMatchState();
+      if (preRunRecipe) renderPreRunRecipeCanvas();
+      else preRunRecipeCtx.drawImage(preRunCurrentCanvas, 0, 0);
       setStatus(matchStatus, t('prerun.matchUploaded'));
     });
   });
@@ -869,7 +914,7 @@
       tCanvas.getContext('2d').drawImage(preRunRecipe.imageObj, 0, 0, W, H);
 
       var srcTemplate = track(cv.imread(tCanvas));
-      var srcCurrent = track(cv.imread(preRunRecipeCanvas));
+      var srcCurrent = track(cv.imread(preRunCurrentCanvas));
       var grayTemplate = track(new cv.Mat());
       var grayCurrent = track(new cv.Mat());
       cv.cvtColor(srcTemplate, grayTemplate, cv.COLOR_RGBA2GRAY);
@@ -936,7 +981,7 @@
   /** Redraws the current photo + transformed path + label from the last applied match - the "clean" (no spray) view, reused both right after a match/confirm, to reset the trail before each simulation run, and to redraw the label in a newly selected language. */
   function renderResultBase() {
     resultCtx.clearRect(0, 0, W, H);
-    resultCtx.drawImage(preRunRecipeCanvas, 0, 0);
+    resultCtx.drawImage(preRunCurrentCanvas, 0, 0);
     var pts = [];
     preRunRecipe.tiles.forEach(function (tile) {
       pts = pts.concat(drawTransformedTilePath(resultCtx, tile, lastAppliedMatch, '#4fd1c5'));

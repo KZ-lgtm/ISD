@@ -40,6 +40,8 @@
   "combine.statusEnterName": "Enter a recipe name first.",
   "combine.statusNeedPath": "Place at least one path before saving.",
   "combine.statusSaved": "Saved recipe \"{name}\".",
+  "combine.statusStorageFull": "Browser storage is full - delete an old recipe and try again.",
+  "combine.confirmOverwrite": "A recipe named \"{name}\" already exists. Overwrite it?",
   "combine.statusLoaded": "Loaded recipe \"{name}\".",
   "combine.statusDeleted": "Deleted recipe \"{name}\".",
 

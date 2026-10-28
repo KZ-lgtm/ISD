@@ -40,6 +40,8 @@
   "combine.statusEnterName": "請先輸入配方名稱。",
   "combine.statusNeedPath": "請先產生至少一條路徑再儲存。",
   "combine.statusSaved": "已儲存配方「{name}」。",
+  "combine.statusStorageFull": "瀏覽器儲存空間已滿，請刪除舊配方後再試。",
+  "combine.confirmOverwrite": "已有名為「{name}」的配方，要覆寫嗎？",
   "combine.statusLoaded": "已載入配方「{name}」。",
   "combine.statusDeleted": "已刪除配方「{name}」。",
 
