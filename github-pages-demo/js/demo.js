@@ -871,7 +871,13 @@
     var rec = recipes[name];
     if (!rec) return;
     recipeTemplate(rec).then(function (tpl) {
+      var switched = !preRunRecipe || preRunRecipe.rec.name !== name;
       preRunRecipe = { rec: rec, imageObj: tpl.img, template: tpl.canvas };
+      if (keepCurrent && switched) {
+        // the kept photo's true shift (if simulated) was relative to the previous recipe's photo
+        groundTruth = null;
+        preRunCurrentIsRecipe = false;
+      }
       if (generateCurrentDebounce) clearTimeout(generateCurrentDebounce);
       clearMatchState();
       if (!keepCurrent) {
