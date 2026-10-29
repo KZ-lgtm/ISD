@@ -6,7 +6,7 @@
   // ---------- i18n ----------
 
   var LANG_KEY = 'ispDemoLang';
-  var ASSET_VERSION = '5'; // keep in sync with the ?v= on index.html's css/js links; bump on every change so browsers fetch matching files
+  var ASSET_VERSION = '6'; // keep in sync with the ?v= on index.html's css/js links; bump on every change so browsers fetch matching files
   var dictionaries = {};
   var currentLang = 'en';
   try {
@@ -837,8 +837,10 @@
     preRunRecipeCtx.clearRect(0, 0, W, H);
     if (!preRunHasCurrent) return;
     preRunRecipeCtx.drawImage(preRunCurrentCanvas, 0, 0);
+    $('alignLegend').hidden = !applied;
     if (applied) {
-      drawProgramPath(preRunRecipeCtx, applied.origPath, { color: '#fc8181', dashed: true, alpha: 0.8, showOff: false, pointSize: 0 });
+      // the taught (uncorrected) path sits where the part was when taught, off the part in this photo - only on request
+      if ($('showTaughtPath').checked) drawProgramPath(preRunRecipeCtx, applied.origPath, { color: '#fc8181', dashed: true, alpha: 0.8, showOff: false, pointSize: 0 });
       drawProgramPath(preRunRecipeCtx, applied.path, { color: '#4fd1c5' });
       return;
     }
@@ -918,6 +920,7 @@
     });
   }
 
+  $('showTaughtPath').addEventListener('change', renderPreRunRecipeCanvas);
   preRunLoadRecipeBtn.addEventListener('click', function () { loadPreRunRecipe(preRunRecipeSelect.value); });
 
   // ---------- simulated current photo + stress ----------

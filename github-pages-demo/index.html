@@ -6,7 +6,7 @@
 <title>Intelligent Spray — Interactive Demo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=5">
+<link rel="stylesheet" href="css/style.css?v=6">
 </head>
 <body>
 
@@ -191,6 +191,10 @@
       <div id="alignViewSlot">
         <div id="preRunView">
           <div class="canvas-wrap"><canvas id="preRunRecipeCanvas" width="560" height="360"></canvas></div>
+          <div class="legend" id="alignLegend" hidden>
+            <span><span class="swatch" style="border-color:#4FD1C5"></span><span data-i18n="corrected.legendCorrected">Corrected path</span></span>
+            <label class="check inline"><input type="checkbox" id="showTaughtPath"> <span class="swatch dashed" style="border-color:#FC8181"></span><span data-i18n="wiz.showTaught">Show taught path (before correction)</span></label>
+          </div>
           <div id="preRunFeatureStatus" class="hint" data-i18n="prerun.noRecipeLoaded">No recipe loaded</div>
         </div>
       </div>
@@ -466,9 +470,9 @@
 </dialog>
 
 <script async src="lib/opencv/opencv.js"></script>
-<script src="js/core.js?v=5"></script>
-<script src="js/store.js?v=5"></script>
-<script src="js/vision.js?v=5"></script>
-<script src="js/demo.js?v=5"></script>
+<script src="js/core.js?v=6"></script>
+<script src="js/store.js?v=6"></script>
+<script src="js/vision.js?v=6"></script>
+<script src="js/demo.js?v=6"></script>
 </body>
 </html>
