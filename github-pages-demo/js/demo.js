@@ -6,7 +6,7 @@
   // ---------- i18n ----------
 
   var LANG_KEY = 'ispDemoLang';
-  var ASSET_VERSION = '4'; // keep in sync with the ?v= on index.html's css/js links; bump on every change so browsers fetch matching files
+  var ASSET_VERSION = '5'; // keep in sync with the ?v= on index.html's css/js links; bump on every change so browsers fetch matching files
   var dictionaries = {};
   var currentLang = 'en';
   try {
@@ -64,7 +64,10 @@
       el._isStatusLine = true;
       el.className = 'status-line' + (cls ? ' ' + cls : '');
     }
+    // every meaningful state change reports a status, so this keeps the step bar's done marks current
+    if (wizardReady) renderStepper();
   }
+  var wizardReady = false;
 
   function download(filename, text, mime) {
     var blob = new Blob([text], { type: mime || 'text/plain' });
@@ -834,6 +837,11 @@
     preRunRecipeCtx.clearRect(0, 0, W, H);
     if (!preRunHasCurrent) return;
     preRunRecipeCtx.drawImage(preRunCurrentCanvas, 0, 0);
+    if (applied) {
+      drawProgramPath(preRunRecipeCtx, applied.origPath, { color: '#fc8181', dashed: true, alpha: 0.8, showOff: false, pointSize: 0 });
+      drawProgramPath(preRunRecipeCtx, applied.path, { color: '#4fd1c5' });
+      return;
+    }
     if (!preRunCurrentIsRecipe || !preRunRecipe) return;
     (preRunRecipe.rec.keepOuts || []).forEach(function (k) { strokePoly(preRunRecipeCtx, k, '#fc8181', 1.5, null, 'rgba(252,129,129,0.22)'); });
     drawProgramPath(preRunRecipeCtx, preRunRecipe.rec.path, { color: '#63b3ed', alpha: 0.9 });
@@ -1021,6 +1029,9 @@
   function renderMatchResult() {
     if (!lastMatch) return;
     var res = lastMatch.res, ev = lastMatch.evaluation;
+    $('keyMoved').textContent = fmt(ev.shiftMm, 1) + ' mm';
+    $('keyRotated').textContent = fmt(res.thetaDeg, 1) + '°';
+    $('keyMatch').textContent = fmt(ev.verify, 2);
     $('resultShift').textContent = fmtSigned(ev.dxMm, 1) + ', ' + fmtSigned(ev.dyMm, 1) + ' mm';
     $('resultTheta').textContent = fmt(res.thetaDeg, 2) + ' °';
     $('resultScale').textContent = fmt(res.scale * 100, 2) + ' %';
@@ -1040,7 +1051,7 @@
   function renderVerdict() {
     if (!lastMatch) { verdictBox.style.display = 'none'; return; }
     var ev = lastMatch.evaluation;
-    verdictBox.style.display = 'block';
+    verdictBox.style.display = 'flex';
     var overridden = applied && applied.labelKey === 'prerun.pathLabelOverride';
     verdictBanner.className = 'verdict ' + (ev.pass ? 'pass' : overridden ? 'warn' : 'fail');
     verdictBanner.textContent = ev.pass ? '✓ ' + t('verdict.pass') : overridden ? '⚠ ' + t('verdict.overridden') : '✗ ' + t('verdict.fail');
@@ -1240,6 +1251,7 @@
     renderExportHint();
     setStatus(simStatus, enough ? 'sim.statusReady' : 'sim.statusTooFew');
     renderResultFrame();
+    renderPreRunRecipeCanvas();
     metricsBox.innerHTML = '';
     resetInspection();
     if (logEntry) {
@@ -1641,6 +1653,7 @@
       stat(t('bench.rotErr'), rots.length ? fmt(Core.mean(rots), 2) + ' °' : '—', rots.length ? t('bench.rotErrSub', { p95: fmt(Core.percentile(rots, 0.95), 2) }) : ''),
       stat(t('bench.time'), fmt(Core.mean(tr.map(function (x) { return x.ms; })), 0) + ' ms', t('bench.timeSub'))
     ].join('');
+    $('benchChartWrap').hidden = false;
     drawHistogram($('benchChart'), $('benchTip'), errs, acc);
     $('benchTable').innerHTML = '<table class="data-table"><tr><th>#</th><th>' + t('bench.colShift') + '</th><th>' + t('bench.colRot') + '</th><th>' + t('bench.colErr') + '</th><th>' + t('bench.colRotErr') + '</th><th>' + t('bench.colVerify') + '</th><th>' + t('bench.colResult') + '</th></tr>' +
       tr.map(function (x) {
@@ -1651,7 +1664,7 @@
 
   // ---------- charts (canvas, dark surface) ----------
 
-  var CHART = { ink: '#e6ebf5', muted: '#898781', grid: '#2c2c2a', axis: '#383835', series: '#3987e5', critical: '#d03b3b' };
+  var CHART = { ink: '#1B2430', muted: '#5F6B7A', grid: '#E6E9EE', axis: '#C3C7CF', series: '#2A78D6', critical: '#D03B3B' };
 
   function chartFont(ctx) { ctx.font = '11px -apple-system, Segoe UI, Roboto, Arial, sans-serif'; }
 
@@ -1832,7 +1845,7 @@
     entries.forEach(function (e, i) {
       var bad = e.verdict !== 'pass';
       ctx.fillStyle = bad ? CHART.critical : CHART.series;
-      ctx.strokeStyle = '#10182a'; ctx.lineWidth = 2;
+      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(X(i), Y(e[field]), bad ? 5 : 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       canvas._pts.push({ x: X(i), y: Y(e[field]), e: e });
     });
@@ -1889,13 +1902,75 @@
     if (combinePrimary >= 0 && !combinePath.length) regenerateCombinePath();
   }, 250);
 
+  // ---------- wizard ----------
+
+  var STEP_COUNT = 6;
+  var currentStep = 0;
+  var stepButtons = Array.prototype.slice.call(document.querySelectorAll('.stepper .step'));
+  var stepPanels = Array.prototype.slice.call(document.querySelectorAll('.step-panel'));
+  var backBtn = $('backBtn'), nextBtn = $('nextBtn'), navHint = $('navHint');
+
+  /** Whether each step's job is done - drives the check marks, the hint and how strongly Next is offered. */
+  function stepDone(i) {
+    switch (i) {
+      case 0: return recipeNames().length > 0;
+      case 1: return !!preRunRecipe && preRunHasCurrent;
+      case 2: return !!applied;
+      case 3: return !!(applied && applied.done);
+      case 4: return !!(inspection && inspection.result);
+      default: return false;
+    }
+  }
+
+  function renderStepper() {
+    stepButtons.forEach(function (b, i) {
+      var done = stepDone(i), cur = i === currentStep;
+      b.classList.toggle('current', cur);
+      b.classList.toggle('done', done && !cur);
+      if (cur) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+      b.querySelector('.step-num').textContent = done && !cur ? '✓' : String(i + 1);
+    });
+    var last = currentStep === STEP_COUNT - 1, done = stepDone(currentStep);
+    backBtn.disabled = currentStep === 0;
+    nextBtn.textContent = last ? t('wiz.nextPart') : t('wiz.next', { step: t('wiz.s' + (currentStep + 1)) });
+    nextBtn.className = 'dark' + (done || last ? '' : ' soft');
+    navHint.textContent = last ? t('wiz.hDone5') : done ? t('wiz.hDone', { step: t('wiz.s' + (currentStep + 1)) }) : t('wiz.h' + currentStep);
+    $('headerRecipe').textContent = preRunRecipe ? preRunRecipe.rec.name : '—';
+  }
+
+  /** Shows one step. Steps 2 and 3 share the current-photo canvas, which moves into the shown step. */
+  function goStep(i, quiet) {
+    currentStep = Math.max(0, Math.min(STEP_COUNT - 1, i));
+    stepPanels.forEach(function (p) { p.hidden = Number(p.getAttribute('data-step')) !== currentStep; });
+    var slot = currentStep === 1 ? $('loadViewSlot') : currentStep === 2 ? $('alignViewSlot') : null;
+    if (slot && $('preRunView').parentNode !== slot) slot.appendChild($('preRunView'));
+    renderStepper();
+    if (!quiet) $('wizardMain').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (currentStep === 3 && applied && !simRunning) renderResultFrame();
+  }
+
+  stepButtons.forEach(function (b, i) { b.addEventListener('click', function () { goStep(i); }); });
+  backBtn.addEventListener('click', function () { goStep(currentStep - 1); });
+  // the last step loops back to loading the next part - the normal production cycle
+  nextBtn.addEventListener('click', function () { goStep(currentStep === STEP_COUNT - 1 ? 1 : currentStep + 1); });
+
+  var settingsDialog = $('settingsDialog');
+  $('openSettingsBtn').addEventListener('click', function () {
+    if (settingsDialog.showModal) settingsDialog.showModal(); else settingsDialog.setAttribute('open', '');
+  });
+  $('closeSettingsBtn').addEventListener('click', function () { if (settingsDialog.close) settingsDialog.close(); else settingsDialog.removeAttribute('open'); });
+  settingsDialog.addEventListener('click', function (e) { if (e.target === settingsDialog) settingsDialog.close(); });
+
   // ---------- one-click full demo ----------
 
-  /** Walks the whole workflow: sample photo -> contours -> recipe -> pre-run shift -> match -> spray simulation -> inspection. */
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  /** Walks the whole workflow, showing each wizard step: teach -> load part -> align -> spray -> inspect. */
   function runFullDemo() {
     if (!Vision.ready()) return;
     runDemoBtn.disabled = true;
     stopPathSimulation();
+    goStep(0);
     sampleSelect.value = 'A';
     combineRefCanvas = makeWorkpieceCanvas('A');
     combineResetLayout();
@@ -1910,24 +1985,33 @@
 
     var name = t('app.demoRecipeName');
     recipeNameInput.value = name;
+    function done() { runDemoBtn.disabled = false; }
     saveCurrentRecipe(name, false).then(function (ok) {
-      if (!ok) { runDemoBtn.disabled = false; return; }
-      loadPreRunRecipe(name, function () {
-        randomizeShift(0.6);
-        var ev = runMatchAndApply();
-        if (ev) renderGroundTruthBox();
-        $('resultSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        if (ev && applied) {
-          onSimulationFinished = function () {
-            setAfterPhoto(simulatedAfterPhoto(), 'inspect.statusSimulated');
-            runInspection();
-            runDemoBtn.disabled = false;
-          };
-          setViewMode('film');
-          setTimeout(startPathSimulation, 600); // let the scroll settle so the spray pass is seen
-        } else {
-          runDemoBtn.disabled = false;
-        }
+      if (!ok) { done(); return; }
+      wait(900).then(function () {
+        goStep(1);
+        loadPreRunRecipe(name, function () {
+          randomizeShift(0.6);
+          wait(1100).then(function () {
+            goStep(2);
+            var ev = runMatchAndApply();
+            if (ev) renderGroundTruthBox();
+            if (!ev || !applied) { done(); return; }
+            wait(1400).then(function () {
+              goStep(3);
+              onSimulationFinished = function () {
+                wait(700).then(function () {
+                  goStep(4);
+                  setAfterPhoto(simulatedAfterPhoto(), 'inspect.statusSimulated');
+                  runInspection();
+                  done();
+                });
+              };
+              setViewMode('film');
+              setTimeout(startPathSimulation, 400);
+            });
+          });
+        });
       });
     });
   }
@@ -1960,6 +2044,7 @@
     renderInspection();
     renderBench();
     renderLog();
+    renderStepper();
   }
 
   function setLang(lang) {
@@ -1984,6 +2069,8 @@
   setStatus(simStatus, 'sim.statusInitial');
   setStatus(preRunFeatureStatus, 'prerun.noRecipeLoaded');
   resetInspection();
+  wizardReady = true;
+  goStep(0, true);
 
   Promise.all([store.getSetting('station'), store.getAllRecipes(), store.getLog()]).then(function (r) {
     if (r[0]) {
@@ -2001,6 +2088,7 @@
     renderFilmLegend();
     refreshRecipeSelects();
     renderLog();
+    renderStepper();
   }).catch(function (e) {
     console.error('Loading saved data failed:', e);
     fillStationInputs();

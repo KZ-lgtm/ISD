@@ -9,14 +9,25 @@ the page to see every step run once.
 
 ## What the page does
 
-| Section | What you can do |
+The page is a 6-step wizard: one step on screen at a time, with **Back / Next** at
+the bottom and a step bar at the top. A step gets a ✓ once its job is done, and
+Next is highlighted then. Click **Run full demo** in the header to watch every
+step run once.
+
+| Step | What you do |
 |---|---|
-| **0 Station setup** | Camera scale (mm/px) from a known part width, or a camera → robot alignment fitted from 3+ point pairs (handles the image/robot axis flip). Pass/fail limits (shift, rotation, scale, confidence, inliers, verification). Matching method (ORB, template, auto) and CLAHE contrast normalisation. Gun flow, standoff height, target film. |
-| **1 Combine** | Load a sample (A panel, B bracket) or your own photo, find contours and give them roles: **outline** (the part to spray, also the main feature), extra **feature** regions for matching, **keep-outs** (holes are added automatically). Spray program: spray width + overlap → row spacing, edge offset, lead-in/out, fill direction, and edge / fill / cross-hatch passes with their own speed and flow. The gun is turned off over keep-outs and during lead-in/out and travel moves. Recipes are saved in the browser and can be exported / imported as JSON files. |
-| **2 Pre-run** | Shift, rotate and scale the part (ground truth stays hidden until you reveal it), add stress (brightness, contrast, noise, blur, glare, covered feature) or upload a real photo. **Run pattern match** checks the result against the station limits: a pass applies the corrected path, a reject doesn't (an override is possible and is logged). **Identify part** tries every recipe on the current photo. The **accuracy test** runs many random shifts and reports success rate, position/rotation error, a histogram and a table. |
-| **3 Corrected path & simulation** | The corrected path next to the original one, then an animated spray pass with Gaussian paint deposition: paint view or film-thickness map. Coverage, in-spec area, mean film, non-uniformity, paint on part / overspray, paint in keep-outs, paint used and cycle time. Export the corrected path as CSV, JSON, ABB RAPID, KUKA KRL or FANUC .LS. |
-| **4 Post-spray inspection** | A simulated after-photo (optionally with a clogged nozzle) or an uploaded one is compared with the before-photo. The paint opacity it measures is checked against the planned film: missed, thin, unexpected paint, paint in keep-outs. |
-| **5 Cycle log & trend** | Every pre-run is logged with a thumbnail. X / Y / rotation trend charts, warnings for drift or a steady offset (only when it stands clearly above the cycle-to-cycle scatter), CSV export. |
+| **1 Teach** | Load a sample (A panel, B bracket) or your own photo and click **Find contours**. Give contours roles: **outline** (the part to spray, also the main feature), extra **feature** regions for matching, and **keep-outs** (holes are added automatically). The spray program (spray width + overlap, edge offset, lead-in/out, fill direction, and edge / fill / cross-hatch passes with their own speed and flow) is under **Spray program**. Save the recipe; the **Recipe library** holds load / delete / export / import. |
+| **2 Load part** | Choose and load a recipe, then **Randomize** where the part landed (or set the shift by hand), or upload a real photo. **Identify part** tries every recipe on the current photo. |
+| **3 Align** | **Run pattern match**. A PASS applies the corrected path, shown over the photo. A REJECT does not; an override is possible and is logged. **Show all checks** lists every limit, the full match result and the hidden true shift. |
+| **4 Spray** | Play the spray pass or jump to the final result: paint view or film-thickness map, plus coverage, in-spec area, film, uniformity, overspray, paint in keep-outs, paint used and cycle time. A clogged nozzle can be simulated. |
+| **5 Inspect** | Use a simulated after-photo or upload one, then **Inspect**: missed, thin, unexpected paint, paint in keep-outs. |
+| **6 Report** | Export the corrected path (CSV, JSON, ABB RAPID, KUKA KRL, FANUC .LS) and review the cycle log: X / Y / rotation trends, drift warnings, CSV export. **Next part** loops back to step 2. |
+
+**Station settings** (header button) holds everything that is set once per
+station: camera scale or camera → robot alignment, pass/fail limits, matching
+method and CLAHE, gun flow, standoff and target film. It also holds the
+**testing** tools: the stress sliders (brightness, contrast, noise, blur,
+glare, covered feature) and the accuracy test.
 
 The page is in English and Traditional Chinese (switch at the top right).
 
