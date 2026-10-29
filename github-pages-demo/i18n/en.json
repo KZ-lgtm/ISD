@@ -272,7 +272,6 @@
   "bench.resRejected": "Rejected",
   "bench.resNoMatch": "No match",
   "corrected.heading": "Corrected Path & Spray Simulation",
-  "corrected.legendOriginal": "Taught path (before correction)",
   "wiz.showTaught": "Show taught path (before correction)",
   "corrected.legendCorrected": "Corrected path",
   "sim.viewPath": "Path",
