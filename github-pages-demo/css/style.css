@@ -218,6 +218,7 @@ ul.check-list li.bad { color: var(--bad-ink); }
 
 .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); }
 .view-card .legend { background: #10151F; color: #D5DBE5; border-radius: 8px; padding: 8px 10px; }
+.view-card .legend label { color: inherit; margin: 0; font-size: 13px; align-items: center; cursor: pointer; }
 .legend > span { display: inline-flex; align-items: center; gap: 6px; }
 .legend .swatch { width: 22px; border-top: 3px solid var(--accent); }
 .legend .swatch.dashed { border-top-style: dashed; }
