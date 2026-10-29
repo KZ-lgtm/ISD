@@ -6,7 +6,23 @@
   // ---------- i18n ----------
 
   var LANG_KEY = 'ispDemoLang';
-  var ASSET_VERSION = '7'; // keep in sync with the ?v= on index.html's css/js links; bump on every change so browsers fetch matching files
+  var ASSET_VERSION = '8'; // keep in sync with the ?v= on index.html's css/js links and version.json; bump on every change
+
+  // ---------- stale-page check ----------
+  // GitHub Pages lets browsers reuse a cached index.html for ~10 minutes after a deploy, which keeps
+  // loading the old scripts. version.json is fetched past the cache; if it is newer than this script,
+  // reload once from a URL carrying the new version, which the browser has never cached.
+  (function checkForNewVersion() {
+    if (!window.fetch || location.protocol === 'file:') return;
+    fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
+      var latest = v && String(v.version);
+      if (!latest || latest === ASSET_VERSION) return;
+      var params = new URLSearchParams(location.search);
+      if (params.get('v') === latest) return; // already reloaded for this version - never loop
+      params.set('v', latest);
+      location.replace(location.pathname + '?' + params.toString() + location.hash);
+    }).catch(function () { });
+  })();
   var dictionaries = {};
   var currentLang = 'en';
   try {

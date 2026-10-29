@@ -102,11 +102,15 @@ This repository already publishes it: Pages serves the repository root of
 a separate repository is not needed. Every push to `main` redeploys within
 about a minute (see the "pages build and deployment" run under Actions).
 
-**When you change any file, bump the version** in two places so browsers
+**When you change any file, bump the version** in three places so browsers
 don't combine cached old files with new ones:
 
 - the `?v=` on the CSS and JS links in `index.html`
 - `ASSET_VERSION` in `js/demo.js`, which is used for the language files
+- `version.json`
+
+A page that a browser still has cached from an older deploy sees the newer
+`version.json` and reloads itself once with fresh files.
 
 ## Privacy
 
