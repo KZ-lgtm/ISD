@@ -6,7 +6,7 @@
 <title>Intelligent Spray — Interactive Demo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=6">
+<link rel="stylesheet" href="css/style.css?v=7">
 </head>
 <body>
 
@@ -251,9 +251,9 @@
       </div>
       <div class="canvas-wrap"><canvas id="resultCanvas" width="560" height="360"></canvas></div>
       <div class="legend" id="pathLegend">
-        <span><span class="swatch dashed" style="border-color:#FC8181"></span><span data-i18n="corrected.legendOriginal">Original recipe path</span></span>
         <span><span class="swatch" style="border-color:#4FD1C5"></span><span data-i18n="corrected.legendCorrected">Corrected path</span></span>
         <span><span class="swatch dotted" style="border-color:#93A0BD"></span><span data-i18n="legend.gunOff">Gun-off move</span></span>
+        <label class="check inline"><input type="checkbox" id="showTaughtPathSpray"> <span class="swatch dashed" style="border-color:#FC8181"></span><span data-i18n="wiz.showTaught">Show taught path (before correction)</span></label>
       </div>
       <div class="film-legend" id="filmLegend" style="display:none;">
         <canvas id="filmLegendCanvas" width="300" height="12"></canvas>
@@ -470,9 +470,9 @@
 </dialog>
 
 <script async src="lib/opencv/opencv.js"></script>
-<script src="js/core.js?v=6"></script>
-<script src="js/store.js?v=6"></script>
-<script src="js/vision.js?v=6"></script>
-<script src="js/demo.js?v=6"></script>
+<script src="js/core.js?v=7"></script>
+<script src="js/store.js?v=7"></script>
+<script src="js/vision.js?v=7"></script>
+<script src="js/demo.js?v=7"></script>
 </body>
 </html>

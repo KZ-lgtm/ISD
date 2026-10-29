@@ -6,7 +6,7 @@
   // ---------- i18n ----------
 
   var LANG_KEY = 'ispDemoLang';
-  var ASSET_VERSION = '6'; // keep in sync with the ?v= on index.html's css/js links; bump on every change so browsers fetch matching files
+  var ASSET_VERSION = '7'; // keep in sync with the ?v= on index.html's css/js links; bump on every change so browsers fetch matching files
   var dictionaries = {};
   var currentLang = 'en';
   try {
@@ -920,7 +920,14 @@
     });
   }
 
-  $('showTaughtPath').addEventListener('change', renderPreRunRecipeCanvas);
+  // one setting shown in two places (Align and Spray): keep both checkboxes in step and redraw both views
+  ['showTaughtPath', 'showTaughtPathSpray'].forEach(function (id, i, ids) {
+    $(id).addEventListener('change', function () {
+      $(ids[1 - i]).checked = $(id).checked;
+      renderPreRunRecipeCanvas();
+      if (applied) renderResultFrame();
+    });
+  });
   preRunLoadRecipeBtn.addEventListener('click', function () { loadPreRunRecipe(preRunRecipeSelect.value); });
 
   // ---------- simulated current photo + stress ----------
@@ -1329,7 +1336,7 @@
     if (viewMode === 'film') { resultCtx.fillStyle = 'rgba(10,14,24,0.45)'; resultCtx.fillRect(0, 0, W, H); }
     if (viewMode !== 'path') drawFilmOverlay(resultCtx, applied.grid, viewMode);
     if (viewMode === 'path') {
-      drawProgramPath(resultCtx, applied.origPath, { color: '#fc8181', dashed: true, alpha: 0.75, showOff: false, pointSize: 0 });
+      if ($('showTaughtPath').checked) drawProgramPath(resultCtx, applied.origPath, { color: '#fc8181', dashed: true, alpha: 0.75, showOff: false, pointSize: 0 });
       drawProgramPath(resultCtx, applied.path, { color: '#4fd1c5' });
     }
     if (viewMode !== 'path' && applied.sampleIdx > 0 && !applied.done) {
