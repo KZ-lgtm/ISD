@@ -11,14 +11,15 @@ the page to see every step run once.
 
 The page is a 6-step wizard: one step on screen at a time, with **Back / Next** at
 the bottom and a step bar at the top. A step gets a ✓ once its job is done, and
-Next is highlighted then. Click **Run full demo** in the header to watch every
+Next is highlighted then. A step opened before the steps it depends on says
+which one is missing and offers a button to go there. Click **Run full demo** in the header to watch every
 step run once.
 
 | Step | What you do |
 |---|---|
-| **1 Teach** | Load a sample (A panel, B bracket) or your own photo and click **Find contours**. Give contours roles: **outline** (the part to spray, also the main feature), extra **feature** regions for matching, and **keep-outs** (holes are added automatically). The spray program (spray width + overlap, edge offset, lead-in/out, fill direction, and edge / fill / cross-hatch passes with their own speed and flow) is under **Spray program**. Save the recipe; the **Recipe library** holds load / delete / export / import. |
-| **2 Load part** | Choose and load a recipe, then **Randomize** where the part landed (or set the shift by hand), or upload a real photo. **Identify part** tries every recipe on the current photo. |
-| **3 Align** | **Run pattern match**. A PASS applies the corrected path, shown over the photo. A REJECT does not; an override is possible and is logged. **Show all checks** lists every limit, the full match result and the hidden true shift. |
+| **1 Teach** | Pick a sample (A panel, B bracket) or upload your own photo; the outline and spray path are found automatically and a recipe name is suggested. Adjust contour roles if needed: **outline** (the part to spray, also the main feature), extra **feature** regions for matching, and **keep-outs** (holes are added automatically). The spray program (spray width + overlap, edge offset, lead-in/out, fill direction, and edge / fill / cross-hatch passes with their own speed and flow) is under **Spray program**. **Save & continue** in the bottom bar saves the recipe and opens the next step; the **Recipe library** holds load / delete / export / import. |
+| **2 Load part** | The recipe you just saved is loaded automatically. **Randomize** where the part landed (or set the shift by hand), or upload a real photo. **Identify part** tries every recipe on the current photo. |
+| **3 Align** | **Run pattern match**. A PASS applies the corrected path, shown over the photo. A REJECT does not; an override is possible and is logged. **Show all checks** lists every limit, the full match result and the hidden true shift. Spraying the taught path without a match is under **More options**. |
 | **4 Spray** | Play the spray pass or jump to the final result: paint view or film-thickness map, plus coverage, in-spec area, film, uniformity, overspray, paint in keep-outs, paint used and cycle time. A clogged nozzle can be simulated. |
 | **5 Inspect** | Use a simulated after-photo or upload one, then **Inspect**: missed, thin, unexpected paint, paint in keep-outs. |
 | **6 Report** | Export the corrected path (CSV, JSON, ABB RAPID, KUKA KRL, FANUC .LS) and review the cycle log: X / Y / rotation trends, drift warnings, CSV export. **Next part** loops back to step 2. |

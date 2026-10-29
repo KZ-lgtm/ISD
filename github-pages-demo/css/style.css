@@ -283,3 +283,22 @@ table.log-table img { height: 34px; border-radius: 4px; display: block; }
   dialog { padding: 16px; }
   .nav-hint { order: 3; flex-basis: 100%; }
 }
+
+/* ---------- v9 ---------- */
+
+/* `hidden` must win over component display rules (e.g. .legend's flex) */
+[hidden] { display: none !important; }
+
+button.outline { background: var(--card); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+button.outline:hover:not(:disabled) { background: var(--accent-soft); }
+button.icon { min-width: 40px; min-height: 40px; padding: 0; font-size: 20px; line-height: 1; }
+
+.welcome#welcome { display: flex; align-items: flex-start; gap: 12px; }
+.welcome#welcome p { flex: 1; }
+
+.prereq { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--warn-bg); color: var(--warn-ink); border: 1px solid var(--warn-line); font-weight: 600; }
+.prereq span { flex: 1 1 180px; }
+.prereq button { min-height: 40px; }
+
+ul.contour-list { max-height: 170px; }
+.card.lead h1:focus { outline: none; }
