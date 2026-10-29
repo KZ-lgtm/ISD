@@ -6,7 +6,7 @@
 <title>Intelligent Spray — Interactive Demo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=8">
+<link rel="stylesheet" href="css/style.css?v=9">
 </head>
 <body>
 
@@ -16,7 +16,7 @@
     <span data-i18n="app.title">Intelligent Spray — Interactive Demo</span>
   </div>
   <div class="header-recipe"><span data-i18n="wiz.recipe">Recipe</span> <strong id="headerRecipe">—</strong></div>
-  <button id="runDemoBtn" class="primary" data-i18n="app.runDemo">Run full demo</button>
+  <button id="runDemoBtn" class="outline" data-i18n="app.runDemo">Run full demo</button>
   <button id="openSettingsBtn" class="ghost">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7"></path><path d="M4 10V3"></path><path d="M12 21v-9"></path><path d="M12 8V3"></path><path d="M20 21v-5"></path><path d="M20 12V3"></path><path d="M1 14h6"></path><path d="M9 8h6"></path><path d="M17 16h6"></path></svg>
     <span data-i18n="wiz.settings">Station settings</span>
@@ -27,10 +27,11 @@
   </div>
 </header>
 
-<div class="welcome">
+<div class="welcome" id="welcome">
   <p data-i18n="app.intro">When a part sits slightly off its fixture, a fixed spray path misses. This demo shows the fix: the camera finds how far the part moved and rotated, and the saved spray path is shifted to match before spraying.</p>
-  <div id="storageNote" class="hero-note"></div>
+  <button id="closeIntroBtn" class="ghost icon" aria-label="Hide introduction" data-i18n-aria="wiz.hideIntro">×</button>
 </div>
+<div class="welcome"><div id="storageNote" class="hero-note"></div></div>
 
 <nav class="stepper" aria-label="Steps">
   <ol>
@@ -63,26 +64,26 @@
       <div class="card lead">
         <span class="eyebrow" data-i18n="wiz.stepOf1">Step 1 of 6</span>
         <h1 id="t0" data-i18n="wiz.t0">Teach the part</h1>
-        <p data-i18n="wiz.d0">Pick a photo of a correctly placed part, find its outline, then save it as a recipe. The spray path is generated for you.</p>
-      </div>
-      <div class="card">
-        <h3 class="card-title"><span class="n">a</span> <span data-i18n="wiz.c0photo">Photo</span></h3>
+        <p data-i18n="wiz.d0">Pick a photo of a correctly placed part. Its outline and spray path are found for you — check them, then save.</p>
         <div class="btn-row">
           <select id="sampleSelect" aria-label="Sample photo" style="flex:1;min-width:150px;">
             <option value="A" data-i18n="combine.sampleA">Sample A — panel</option>
             <option value="B" data-i18n="combine.sampleB">Sample B — bracket</option>
           </select>
           <button id="resetSyntheticImageBtn" data-i18n="combine.useSample">Use sample photo</button>
+          <label class="file-btn"><span data-i18n="wiz.uploadPhoto">Upload photo…</span><input type="file" id="combineImageUpload" accept="image/*"></label>
         </div>
-        <label class="file-field"><span data-i18n="wiz.ownPhoto">…or your own photo</span><input type="file" id="combineImageUpload" accept="image/*"></label>
       </div>
       <div class="card">
-        <h3 class="card-title"><span class="n">b</span> <span data-i18n="wiz.c0outline">Outline</span></h3>
-        <button id="combineFindContoursBtn" class="primary wide" data-i18n="combine.findContours">Find contours</button>
-        <p class="hint" data-i18n="combine.rolesHint">Outline = the part to spray (also the main feature). Feature = extra region used for matching. Keep-out = never spray (holes are added automatically).</p>
+        <h3 class="card-title"><span data-i18n="wiz.c0outline">Outline</span></h3>
         <ul class="contour-list" id="combineContourList"></ul>
         <details>
+          <summary data-i18n="wiz.rolesWhat">What do the roles mean?</summary>
+          <p class="hint" data-i18n="combine.rolesHint">Outline = the part to spray (also the main feature). Feature = extra region used for matching. Keep-out = never spray (holes are added automatically).</p>
+        </details>
+        <details>
           <summary data-i18n="wiz.detection">Detection settings</summary>
+          <button id="combineFindContoursBtn" data-i18n="combine.findContoursAgain">Find contours again</button>
           <label><span data-i18n="combine.thresholdLabel">Threshold:</span> <span id="combineThresholdVal">100</span></label>
           <input type="range" id="combineContourThreshold" min="0" max="255" value="100">
           <label><span data-i18n="combine.minAreaLabel">Min contour size:</span> <span id="combineMinAreaVal">20</span> px²</label>
@@ -91,7 +92,7 @@
       </div>
       <div class="card">
         <details>
-          <summary><span class="n">c</span> <span data-i18n="wiz.c0program">Spray program</span></summary>
+          <summary><span data-i18n="wiz.c0program">Spray program</span></summary>
           <div class="field-grid">
             <label for="progWidth" data-i18n="prog.width">Spray width (mm)</label><input type="number" id="progWidth" step="1" min="1">
             <label for="progOverlap" data-i18n="prog.overlap">Overlap (%)</label><input type="number" id="progOverlap" step="5" min="0" max="90">
@@ -120,7 +121,7 @@
         <div id="programStats" class="hint"></div>
       </div>
       <div class="card">
-        <h3 class="card-title"><span class="n">d</span> <span data-i18n="wiz.c0save">Save</span></h3>
+        <h3 class="card-title"><span data-i18n="wiz.c0save">Save</span></h3>
         <div class="btn-row">
           <input type="text" id="recipeNameInput" aria-label="Recipe name" data-i18n-placeholder="combine.recipeNamePlaceholder" placeholder="Recipe name" style="flex:1;min-width:140px;">
           <button id="saveRecipeBtn" class="primary" data-i18n="combine.saveRecipe">Save recipe</button>
@@ -205,7 +206,11 @@
         <h1 id="t2" data-i18n="wiz.t2">Find how far the part moved</h1>
         <p data-i18n="wiz.d2">The camera compares this photo with the taught one and moves the spray path to match.</p>
         <button id="matchBtn" class="primary wide big" data-i18n="prerun.runMatch">Run pattern match</button>
-        <button id="confirmPathBtn" class="link" data-i18n="prerun.confirmPath">Confirm path (skip match)</button>
+        <details>
+          <summary data-i18n="wiz.moreOptions">More options</summary>
+          <p class="hint" data-i18n="wiz.confirmHint">Only when you are sure the part has not moved: spray the taught path without checking.</p>
+          <button id="confirmPathBtn" class="warn" data-i18n="prerun.confirmPath">Confirm path (skip match)</button>
+        </details>
       </div>
       <div id="matchStatus" class="status-line"></div>
       <div class="card" id="verdictBox" style="display:none;">
@@ -344,6 +349,8 @@
     <div class="card full">
       <h3 class="card-title" data-i18n="log.heading">Cycle Log &amp; Trend</h3>
       <div id="driftBox"></div>
+      <p id="trendEmpty" class="hint" hidden></p>
+      <div id="trendBox">
       <div class="trend-grid">
         <div class="chart-wrap"><div class="chart-title" data-i18n="log.chartX">Part shift X (mm)</div><canvas class="trend-chart" data-series="x" width="340" height="150"></canvas><div class="chart-tip"></div></div>
         <div class="chart-wrap"><div class="chart-title" data-i18n="log.chartY">Part shift Y (mm)</div><canvas class="trend-chart" data-series="y" width="340" height="150"></canvas><div class="chart-tip"></div></div>
@@ -353,6 +360,7 @@
         <span><span class="swatch dot" style="background:#2A78D6"></span><span data-i18n="log.legendPass">Accepted cycle</span></span>
         <span><span class="swatch dot" style="background:#D03B3B"></span><span data-i18n="log.legendFail">Rejected or overridden</span></span>
         <span><span class="swatch dashed" style="border-color:#6B7280"></span><span data-i18n="log.legendTol">Pass/fail limit</span></span>
+      </div>
       </div>
       <div class="btn-row">
         <button id="logExportBtn" data-i18n="log.export">Export CSV</button>
@@ -470,9 +478,9 @@
 </dialog>
 
 <script async src="lib/opencv/opencv.js"></script>
-<script src="js/core.js?v=8"></script>
-<script src="js/store.js?v=8"></script>
-<script src="js/vision.js?v=8"></script>
-<script src="js/demo.js?v=8"></script>
+<script src="js/core.js?v=9"></script>
+<script src="js/store.js?v=9"></script>
+<script src="js/vision.js?v=9"></script>
+<script src="js/demo.js?v=9"></script>
 </body>
 </html>

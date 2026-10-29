@@ -6,7 +6,7 @@
   // ---------- i18n ----------
 
   var LANG_KEY = 'ispDemoLang';
-  var ASSET_VERSION = '8'; // keep in sync with the ?v= on index.html's css/js links and version.json; bump on every change
+  var ASSET_VERSION = '9'; // keep in sync with the ?v= on index.html's css/js links and version.json; bump on every change
 
   // ---------- stale-page check ----------
   // GitHub Pages lets browsers reuse a cached index.html for ~10 minutes after a deploy, which keeps
@@ -565,8 +565,21 @@
       .filter(function (k) { return k.length >= 3; });
     combineGeom = { outline: outline, edgeLoop: edgeLoop.length >= 3 ? edgeLoop : outline, keepOuts: keepOuts };
     combinePath = Core.generatePath(combineGeom, combineProgram, station.mmPerPx);
+    combineDirty = true;
     renderCombineCanvas();
     renderProgramStats();
+    if (wizardReady) renderStepper();
+  }
+  var combineDirty = false;   // the Teach layout has changes that aren't saved as a recipe yet
+  var combineSource = 'A';    // 'A' | 'B' sample, or 'own' for an uploaded photo - picks the suggested recipe name
+  var suggestedName = '';
+
+  /** Fills the recipe name with a suggestion unless the user typed their own. */
+  function suggestRecipeName() {
+    var cur = recipeNameInput.value.trim();
+    if (cur && cur !== suggestedName) return;
+    suggestedName = t(combineSource === 'B' ? 'wiz.nameB' : combineSource === 'own' ? 'wiz.nameOwn' : 'wiz.nameA');
+    recipeNameInput.value = suggestedName;
   }
 
   function renderCombineCanvas() {
@@ -638,6 +651,7 @@
       assignDefaultRoles();
       renderCombineContourList();
       regenerateCombinePath();
+      if (combinePrimary >= 0) suggestRecipeName();
       if (combinePrimary >= 0) setStatus(combineStatus, 'combine.statusContoursFound', { count: combineContours.length }, 'ok');
       else setStatus(combineStatus, 'combine.statusNoContours', null, 'err');
     } catch (ex) {
@@ -660,6 +674,8 @@
     loadFileAsImage(file, function (img) {
       fitImageIntoCanvas(img, combineRefCanvas);
       combineResetLayout('combine.statusPhotoLoaded');
+      combineSource = 'own';
+      runFindContours(); // outline found straight away - the user only checks it
     });
   });
 
@@ -667,6 +683,8 @@
     combineRefCanvas = makeWorkpieceCanvas(sampleSelect.value);
     combineImageUpload.value = '';
     combineResetLayout('combine.statusSampleRestored');
+    combineSource = sampleSelect.value;
+    runFindContours();
   });
 
   // ---------- spray program inputs ----------
@@ -763,6 +781,8 @@
       refreshRecipeSelects();
       combineRecipeSelect.value = name;
       preRunRecipeSelect.value = name;
+      combineDirty = false;
+      lastSavedName = name;
       setStatus(combineStatus, 'combine.statusSaved', { name: name }, 'ok');
       return true;
     });
@@ -786,6 +806,7 @@
       if (combinePrimary >= 0) regenerateCombinePath();
       else { combinePath = rec.path || []; renderCombineCanvas(); renderProgramStats(); }
       recipeNameInput.value = rec.name;
+      combineDirty = false; // it is the saved recipe
       setStatus(combineStatus, 'combine.statusLoaded', { name: rec.name }, 'ok');
     });
   });
@@ -1115,7 +1136,7 @@
     };
     if (ev.pass) {
       applyMatchToPath(Core.rigidAbout(res.T, ev.center), 'prerun.pathLabelMatched', entry);
-      setStatus(matchStatus, 'prerun.matchApplied', null, 'ok');
+      setStatus(matchStatus, null); // the PASS card says it
     } else {
       pendingOverride = entry;
       addLogEntry(entry);
@@ -1801,15 +1822,21 @@
     return '<span class="tag ' + cls + '">' + icon + t('log.v_' + v) + '</span>';
   }
 
+  var TREND_MIN = 3; // a trend line needs a few cycles before it says anything
+
   function renderLog() {
     var recent = logEntries.slice(-50);
     var meas = recent.filter(measured);
+    var enough = meas.length >= TREND_MIN;
+    $('trendBox').hidden = !enough;
+    $('trendEmpty').hidden = enough;
+    $('trendEmpty').textContent = t('log.trendWait', { min: TREND_MIN, n: meas.length });
     document.querySelectorAll('.trend-chart').forEach(function (canvas) {
       var key = canvas.getAttribute('data-series');
       var lim = key === 'rot' ? station.tol.maxRotDeg : station.tol.maxShiftMm;
       drawTrend(canvas, canvas.parentNode.querySelector('.chart-tip'), meas, key, lim);
     });
-    renderDrift(meas);
+    if (enough) renderDrift(meas); else $('driftBox').innerHTML = ''; // the trend note already says more cycles are needed
     var table = $('logTable');
     if (!logEntries.length) { table.innerHTML = '<tr><td>' + t('log.empty') + '</td></tr>'; return; }
     var rows = logEntries.slice(-40).reverse().map(function (e) {
@@ -1817,7 +1844,7 @@
       return '<tr><td>' + (e.thumb ? '<img alt="" src="' + e.thumb + '">' : '') + '</td><td>' + e.id + '</td><td>' + d.toLocaleDateString() + ' ' + d.toLocaleTimeString() +
         '</td><td>' + escapeHtml(e.recipe || '') + '</td><td>' + verdictTag(e.verdict) + '</td><td>' +
         (measured(e) ? fmtSigned(e.shiftX, 1) + ', ' + fmtSigned(e.shiftY, 1) : '—') + '</td><td>' + (measured(e) ? fmtSigned(e.rot, 2) : '—') +
-        '</td><td>' + (measured(e) ? fmt(e.score * 100, 0) + ' %' : '—') + '</td><td>' + (e.coverage != null ? fmt(e.coverage, 1) + ' %' : '—') +
+        '</td><td>' + (measured(e) && e.verify != null ? fmt(e.verify, 2) : '—') + '</td><td>' + (e.coverage != null ? fmt(e.coverage, 1) + ' %' : '—') +
         '</td><td>' + (e.inspect ? verdictTag(e.inspect === 'pass' ? 'inspectPass' : 'inspectFail') : '—') + '</td></tr>';
     }).join('');
     table.innerHTML = '<tr><th></th><th>#</th><th>' + t('log.colTime') + '</th><th>' + t('log.colRecipe') + '</th><th>' + t('log.colVerdict') + '</th><th>' +
@@ -1926,6 +1953,11 @@
     cvButtons.forEach(function (b) { b.disabled = false; });
     setStatus(matchStatus, 'prerun.cvReady', null, 'ok');
     if (combinePrimary >= 0 && !combinePath.length) regenerateCombinePath();
+    else if (!combineContours.length) {
+      runFindContours(); // the sample photo's outline is ready on first view
+      // someone with recipes already isn't asked to save this automatic sample layout
+      if (recipeNames().length) { combineDirty = false; renderStepper(); }
+    }
   }, 250);
 
   // ---------- wizard ----------
@@ -1958,27 +1990,91 @@
     });
     var last = currentStep === STEP_COUNT - 1, done = stepDone(currentStep);
     backBtn.disabled = currentStep === 0;
-    nextBtn.textContent = last ? t('wiz.nextPart') : t('wiz.next', { step: t('wiz.s' + (currentStep + 1)) });
-    nextBtn.className = 'dark' + (done || last ? '' : ' soft');
-    navHint.textContent = last ? t('wiz.hDone5') : done ? t('wiz.hDone', { step: t('wiz.s' + (currentStep + 1)) }) : t('wiz.h' + currentStep);
+    if (canSaveAndContinue()) {
+      nextBtn.textContent = t('wiz.saveContinue');
+      nextBtn.className = 'primary';
+      navHint.textContent = t('wiz.h0save');
+    } else {
+      nextBtn.textContent = last ? t('wiz.nextPart') : t('wiz.next', { step: t('wiz.s' + (currentStep + 1)) });
+      nextBtn.className = 'dark' + (done || last ? '' : ' soft');
+      navHint.textContent = last ? t('wiz.hDone5') : done ? t('wiz.hDone', { step: t('wiz.s' + (currentStep + 1)) }) : t('wiz.h' + currentStep);
+    }
+    prereqEls.forEach(function (el, i) {
+      var need = missingBefore(i);
+      el.hidden = need < 0;
+      if (need >= 0) {
+        el.querySelector('span').textContent = t('wiz.needStep', { step: t('wiz.s' + need) });
+        var btn = el.querySelector('button');
+        btn.textContent = t('wiz.goTo', { step: t('wiz.s' + need) });
+        btn.onclick = function () { goStep(need); };
+      }
+    });
     $('headerRecipe').textContent = preRunRecipe ? preRunRecipe.rec.name : '—';
   }
 
+  /** On Teach, once an outline and path exist but aren't saved, Next saves the recipe and moves on. */
+  function canSaveAndContinue() { return currentStep === 0 && combineDirty && combinePrimary >= 0 && combinePath.length > 1; }
+
+  /** First earlier step that isn't done, for steps 2-5 (-1 when nothing is missing). */
+  function missingBefore(i) {
+    if (i < 1 || i > 4) return -1;
+    for (var k = 0; k < i; k++) if (!stepDone(k)) return k;
+    return -1;
+  }
+
+  // "do this first" notes at the top of steps 2-5, so a step opened early says what it needs
+  var prereqEls = stepPanels.map(function (panel) {
+    var el = document.createElement('div');
+    el.className = 'prereq';
+    el.hidden = true;
+    el.innerHTML = '<span></span><button class="primary"></button>';
+    panel.querySelector('.card.lead').prepend(el);
+    return el;
+  });
+
+  var lastSavedName = null; // set by Teach's save; Load part picks it up on arrival
+  var INTRO_KEY = 'ispIntroHidden';
+  var introHidden = false;
+  try { introHidden = localStorage.getItem(INTRO_KEY) === '1'; } catch (e) { }
+  $('closeIntroBtn').addEventListener('click', function () {
+    introHidden = true;
+    try { localStorage.setItem(INTRO_KEY, '1'); } catch (e) { }
+    $('welcome').hidden = true;
+  });
+
   /** Shows one step. Steps 2 and 3 share the current-photo canvas, which moves into the shown step. */
-  function goStep(i, quiet) {
+  function goStep(i, quiet, noAutoLoad) {
     currentStep = Math.max(0, Math.min(STEP_COUNT - 1, i));
+    $('welcome').hidden = introHidden || currentStep !== 0;
+    // arriving at Load part: load the recipe just saved (or the selected one) so the photo isn't blank
+    if (currentStep === 1 && !noAutoLoad) {
+      var want = lastSavedName && recipes[lastSavedName] ? lastSavedName : !preRunRecipe && recipes[preRunRecipeSelect.value] ? preRunRecipeSelect.value : null;
+      if (want && !(preRunRecipe && preRunRecipe.rec === recipes[want])) loadPreRunRecipe(want);
+      lastSavedName = null;
+    }
     stepPanels.forEach(function (p) { p.hidden = Number(p.getAttribute('data-step')) !== currentStep; });
     var slot = currentStep === 1 ? $('loadViewSlot') : currentStep === 2 ? $('alignViewSlot') : null;
     if (slot && $('preRunView').parentNode !== slot) slot.appendChild($('preRunView'));
     renderStepper();
-    if (!quiet) $('wizardMain').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!quiet) {
+      $('wizardMain').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // move focus to the new step's heading so keyboard and screen-reader users land in the step
+      var h = stepPanels[currentStep].querySelector('h1');
+      if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+    }
     if (currentStep === 3 && applied && !simRunning) renderResultFrame();
   }
 
   stepButtons.forEach(function (b, i) { b.addEventListener('click', function () { goStep(i); }); });
   backBtn.addEventListener('click', function () { goStep(currentStep - 1); });
   // the last step loops back to loading the next part - the normal production cycle
-  nextBtn.addEventListener('click', function () { goStep(currentStep === STEP_COUNT - 1 ? 1 : currentStep + 1); });
+  nextBtn.addEventListener('click', function () {
+    if (canSaveAndContinue()) {
+      saveCurrentRecipe(recipeNameInput.value.trim() || suggestedName || t('wiz.nameA'), true).then(function (ok) { if (ok) goStep(1); });
+      return;
+    }
+    goStep(currentStep === STEP_COUNT - 1 ? 1 : currentStep + 1);
+  });
 
   var settingsDialog = $('settingsDialog');
   $('openSettingsBtn').addEventListener('click', function () {
@@ -2015,7 +2111,8 @@
     saveCurrentRecipe(name, false).then(function (ok) {
       if (!ok) { done(); return; }
       wait(900).then(function () {
-        goStep(1);
+        goStep(1, false, true);
+        lastSavedName = null;
         loadPreRunRecipe(name, function () {
           randomizeShift(0.6);
           wait(1100).then(function () {
@@ -2050,6 +2147,7 @@
   function applyI18nStatic() {
     document.querySelectorAll('[data-i18n]').forEach(function (el) { el.textContent = t(el.getAttribute('data-i18n')); });
     document.querySelectorAll('[data-i18n-placeholder]').forEach(function (el) { el.placeholder = t(el.getAttribute('data-i18n-placeholder')); });
+    document.querySelectorAll('[data-i18n-aria]').forEach(function (el) { el.setAttribute('aria-label', t(el.getAttribute('data-i18n-aria'))); });
     document.title = t('app.title');
     document.documentElement.lang = currentLang === 'zh-TW' ? 'zh-Hant' : 'en';
     langEnBtn.classList.toggle('active', currentLang === 'en');
