@@ -6,7 +6,7 @@
 <title>Intelligent Spray — Interactive Demo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=9">
+<link rel="stylesheet" href="css/style.css?v=10">
 </head>
 <body>
 
@@ -43,6 +43,26 @@
     <li><button class="step" data-step="5"><span class="step-num">6</span><span class="step-text"><span class="step-title" data-i18n="wiz.s5">Report</span><span class="step-sub" data-i18n="wiz.s5sub">Log &amp; export</span></span></button></li>
   </ol>
 </nav>
+
+<section class="order-bar" id="orderBar" aria-label="Work order">
+  <div class="order-info" id="orderInfo"></div>
+  <div class="order-progress" id="orderProgressWrap" hidden>
+    <div class="progress-track" role="progressbar" id="orderProgress" aria-valuemin="0" aria-valuenow="0"><span class="seg good" id="orderBarGood"></span><span class="seg bad" id="orderBarBad"></span></div>
+  </div>
+  <div class="btn-row order-actions">
+    <button id="openOrdersBtn" data-i18n="order.manage">Work orders</button>
+    <button id="toggleCellBtn" class="ghost" aria-controls="livePanel"></button>
+  </div>
+</section>
+
+<section class="live-panel" id="livePanel" aria-label="Live 3D cell">
+  <div class="cell-view" id="cellView">
+    <div class="cell-chip" id="cellState"></div>
+    <div class="cell-chip right" id="cellOrder"></div>
+    <div class="cell-fallback" id="cellFallback" hidden data-i18n="cell.noWebgl">The 3D view needs WebGL, which this browser has turned off.</div>
+    <div class="cell-hint" data-i18n="cell.hint">Drag to orbit · scroll to zoom</div>
+  </div>
+</section>
 
 <main id="wizardMain">
 
@@ -378,6 +398,29 @@
   <button id="nextBtn" class="dark"></button>
 </footer>
 
+<!-- ===================== Work orders dialog ===================== -->
+<dialog id="ordersDialog" aria-labelledby="ordersTitle">
+  <div class="dialog-head">
+    <h2 id="ordersTitle" data-i18n="order.manage">Work orders</h2>
+    <button id="closeOrdersBtn" class="ghost" data-i18n="wiz.close">Close</button>
+  </div>
+  <p class="hint" data-i18n="order.intro">The active order decides which part is loaded and counts every finished part. The 3D cell shows its progress.</p>
+  <div class="card">
+    <h3 class="card-title" data-i18n="order.new">New order</h3>
+    <div class="order-form">
+      <label><span data-i18n="order.no">Order no.</span><input type="text" id="orderNoInput"></label>
+      <label><span data-i18n="order.recipe">Recipe</span><select id="orderRecipeSelect"></select></label>
+      <label><span data-i18n="order.qty">Quantity</span><input type="number" id="orderQtyInput" min="1" max="999" value="10"></label>
+      <button id="createOrderBtn" class="primary" data-i18n="order.createStart">Create &amp; start</button>
+    </div>
+    <div id="orderFormStatus" class="status-line"></div>
+  </div>
+  <div class="card">
+    <h3 class="card-title" data-i18n="order.list">All orders</h3>
+    <div class="table-scroll"><table class="data-table" id="ordersTable"></table></div>
+  </div>
+</dialog>
+
 <!-- ===================== Station settings dialog ===================== -->
 <dialog id="settingsDialog" aria-labelledby="settingsTitle">
   <div class="dialog-head">
@@ -478,9 +521,12 @@
 </dialog>
 
 <script async src="lib/opencv/opencv.js"></script>
-<script src="js/core.js?v=9"></script>
-<script src="js/store.js?v=9"></script>
-<script src="js/vision.js?v=9"></script>
-<script src="js/demo.js?v=9"></script>
+<script src="lib/three/three.min.js"></script>
+<script src="lib/three/OrbitControls.js"></script>
+<script src="js/core.js?v=10"></script>
+<script src="js/cell3d.js?v=10"></script>
+<script src="js/store.js?v=10"></script>
+<script src="js/vision.js?v=10"></script>
+<script src="js/demo.js?v=10"></script>
 </body>
 </html>

@@ -24,6 +24,29 @@ step run once.
 | **5 Inspect** | Use a simulated after-photo or upload one, then **Inspect**: missed, thin, unexpected paint, paint in keep-outs. |
 | **6 Report** | Export the corrected path (CSV, JSON, ABB RAPID, KUKA KRL, FANUC .LS) and review the cycle log: X / Y / rotation trends, drift warnings, CSV export. **Next part** loops back to step 2. |
 
+### Work orders and the live 3D cell
+
+Production runs under **work orders** (order no., recipe, quantity), managed from
+**Work orders** in the order bar under the step bar. The active order decides
+which recipe **Load part** loads, and every part of that recipe is counted once,
+by its final result:
+
+- a REJECT at Align counts as rejected (an override takes that back);
+- otherwise the inspection result counts it as good or rejected;
+- re-inspecting the same part corrects its count instead of adding one;
+- a part of another recipe is not counted (the order bar warns).
+
+The order completes when it has as many good parts as ordered. Orders are kept
+in the browser with the recipes, and each cycle-log entry records its order.
+
+The **live 3D cell** under the order bar mirrors the cell for the active order:
+the order's part on the fixture, placed where the camera found it; a gantry
+robot whose gun follows the corrected path in step with the spray simulation,
+spray cone on while the gun is on; the paint film building up on the part; and
+the infeed (parts still to do), good and rejected stacks for the order's counts.
+A status chip shows where the current part is in its cycle. Drag to orbit,
+scroll to zoom; the panel can be hidden. It needs WebGL.
+
 **Station settings** (header button) holds everything that is set once per
 station: camera scale or camera → robot alignment, pass/fail limits, matching
 method and CLAHE, gun flow, standoff and target film. It also holds the
@@ -77,10 +100,13 @@ github-pages-demo/
   js/vision.js          OpenCV.js parts: contours, polygon offsets, matching,
                         verification, stress effects, paint opacity
   js/store.js           IndexedDB storage for recipes, the cycle log and settings
-  js/demo.js            the page logic (UI, simulation, charts, i18n)
+  js/cell3d.js          the live 3D cell (three.js scene: fixture, gantry, part,
+                        paint film, order stacks)
+  js/demo.js            the page logic (UI, work orders, simulation, charts, i18n)
   i18n/en.json          English strings
   i18n/zh-TW.json       Traditional Chinese strings
   lib/opencv/opencv.js  OpenCV.js (WebAssembly build), ~10.5 MB
+  lib/three/            three.js r128 + OrbitControls (MIT, see lib/three/LICENSE)
 ```
 
 ## Try it locally
@@ -115,7 +141,7 @@ A page that a browser still has cached from an older deploy sees the newer
 
 ## Privacy
 
-Everything runs in the visitor's own browser. Photos, recipes and logs are
+Everything runs in the visitor's own browser. Photos, recipes, work orders and logs are
 never uploaded. They are stored in that browser's IndexedDB for this site.
 Recipes saved by older versions in `localStorage` are moved over
 automatically.
