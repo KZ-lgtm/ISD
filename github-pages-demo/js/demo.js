@@ -6,7 +6,7 @@
   // ---------- i18n ----------
 
   var LANG_KEY = 'ispDemoLang';
-  var ASSET_VERSION = '9'; // keep in sync with the ?v= on index.html's css/js links and version.json; bump on every change
+  var ASSET_VERSION = '10'; // keep in sync with the ?v= on index.html's css/js links and version.json; bump on every change
 
   // ---------- stale-page check ----------
   // GitHub Pages lets browsers reuse a cached index.html for ~10 minutes after a deploy, which keeps
@@ -935,6 +935,7 @@
         preRunCurrentIsRecipe = true;
         preRunHasCurrent = true;
         groundTruth = { sx: 0, sy: 0, rot: 0, scale: 1, T: shiftTransform(0, 0, 0, 1) };
+        newCycle();
       }
       preRunRecipeSelect.value = name;
       renderPreRunRecipeCanvas();
@@ -1010,6 +1011,7 @@
     preRunCurrentIsRecipe = false;
     preRunHasCurrent = true;
     groundTruth = { sx: sx, sy: sy, rot: rot, scale: sc, T: T };
+    newCycle();
     clearMatchState();
     renderPreRunRecipeCanvas();
     setStatus(matchStatus, 'prerun.matchSimGenerated');
@@ -1036,6 +1038,7 @@
       preRunHasCurrent = true;
       resetSimSliders(); // the sliders don't describe an uploaded photo
       groundTruth = null;
+      newCycle();
       clearMatchState();
       renderPreRunRecipeCanvas();
       setStatus(matchStatus, 'prerun.matchUploaded');
@@ -1140,6 +1143,7 @@
     } else {
       pendingOverride = entry;
       addLogEntry(entry);
+      countCycle('rejected');
       setStatus(matchStatus, 'prerun.matchRejected', null, 'err');
       setStatus(simStatus, 'sim.statusRejected', null, 'err');
     }
@@ -1163,6 +1167,7 @@
     override.kind = 'override'; override.verdict = 'override';
     delete override.id;
     applyMatchToPath(Core.rigidAbout(lastMatch.res.T, lastMatch.evaluation.center), 'prerun.pathLabelOverride', override);
+    countCycle(null); // the part goes on to be sprayed; inspection decides how it counts
     setStatus(matchStatus, 'prerun.matchOverridden', null, 'busy');
     renderVerdict();
   });
@@ -1329,6 +1334,7 @@
     applied.sampleIdx = 0;
     applied.done = false;
     applied.metrics = null;
+    updateCellFilm();
   }
 
   var paintLayer = null, paintLayerCtx = null;
@@ -1426,6 +1432,10 @@
       var simT = (ts - startTime) / 1000 * num(simPlayback.value, 8);
       depositUntil(simT);
       renderResultFrame();
+      if (cell && applied.sampleIdx > 0) {
+        cell.setGun(applied.samples[applied.sampleIdx - 1]);
+        if (ts - lastCellFilm > 100) { lastCellFilm = ts; updateCellFilm(); }
+      }
       var total = applied.samples.length ? applied.samples[applied.samples.length - 1].t : 0;
       setStatus(simStatus, 'sim.statusSimulating', { t: fmt(Math.min(simT, total), 1), total: fmt(total, 1) }, 'busy');
       if (applied.sampleIdx >= applied.samples.length) { finishSimulation(); return; }
@@ -1440,6 +1450,7 @@
     if (simAnimationId) cancelAnimationFrame(simAnimationId);
     simAnimationId = null;
     simPlayBtn.disabled = false; simInstantBtn.disabled = false; simStopBtn.disabled = true;
+    if (cell) cell.setGun(null);
     setStatus(simStatus, 'sim.statusStopped');
   }
 
@@ -1452,6 +1463,7 @@
     applied.metrics = Core.coverageMetrics(applied.grid, applied.masks, applied.nominal);
     renderResultFrame();
     renderMetrics();
+    if (cell) { cell.setGun(null); updateCellFilm(); }
     simPlayBtn.disabled = false; simInstantBtn.disabled = false; simStopBtn.disabled = true;
     setStatus(simStatus, 'sim.statusFinished', null, 'ok');
     inspectSimBtn.disabled = false;
@@ -1627,6 +1639,7 @@
     inspectCtx.drawImage(layer, 0, 0, nx * GRID_CELL, ny * GRID_CELL);
     renderInspection();
     if (applied.logId != null) updateLogEntry(applied.logId, { inspect: pass ? 'pass' : 'fail', missedPct: missedPct });
+    countCycle(pass ? 'done' : 'rejected');
   }
 
   function paintCell(img, i, rgb) { img.data[i * 4] = rgb[0]; img.data[i * 4 + 1] = rgb[1]; img.data[i * 4 + 2] = rgb[2]; img.data[i * 4 + 3] = 200; }
@@ -1795,6 +1808,8 @@
 
   function addLogEntry(entry) {
     entry.time = Date.now();
+    var ao = activeOrder();
+    entry.orderId = cycle.orderId || (ao && orderFitsPart(ao) ? ao.id : null);
     if (preRunHasCurrent) entry.thumb = thumbOf(preRunCurrentCanvas);
     return store.addLog(entry).then(function (id) {
       entry.id = id;
@@ -1924,7 +1939,7 @@
   }
 
   $('logExportBtn').addEventListener('click', function () {
-    var cols = ['id', 'time', 'recipe', 'kind', 'verdict', 'method', 'shiftX', 'shiftY', 'rot', 'scalePct', 'score', 'inliers', 'verify', 'features', 'coverage', 'inSpec', 'paintMl', 'cycleS', 'inspect', 'missedPct'];
+    var cols = ['id', 'time', 'orderId', 'recipe', 'kind', 'verdict', 'method', 'shiftX', 'shiftY', 'rot', 'scalePct', 'score', 'inliers', 'verify', 'features', 'coverage', 'inSpec', 'paintMl', 'cycleS', 'inspect', 'missedPct'];
     var lines = [cols.join(',')].concat(logEntries.map(function (e) {
       return cols.map(function (c) {
         var v = c === 'time' ? new Date(e.time).toISOString() : e[c];
@@ -2010,6 +2025,8 @@
       }
     });
     $('headerRecipe').textContent = preRunRecipe ? preRunRecipe.rec.name : '—';
+    renderOrderBar();
+    updateCell();
   }
 
   /** On Teach, once an outline and path exist but aren't saved, Next saves the recipe and moves on. */
@@ -2048,7 +2065,10 @@
     $('welcome').hidden = introHidden || currentStep !== 0;
     // arriving at Load part: load the recipe just saved (or the selected one) so the photo isn't blank
     if (currentStep === 1 && !noAutoLoad) {
-      var want = lastSavedName && recipes[lastSavedName] ? lastSavedName : !preRunRecipe && recipes[preRunRecipeSelect.value] ? preRunRecipeSelect.value : null;
+      var ao = activeOrder();
+      var want = ao && recipes[ao.recipe] ? ao.recipe
+        : lastSavedName && recipes[lastSavedName] ? lastSavedName
+        : !preRunRecipe && recipes[preRunRecipeSelect.value] ? preRunRecipeSelect.value : null;
       if (want && !(preRunRecipe && preRunRecipe.rec === recipes[want])) loadPreRunRecipe(want);
       lastSavedName = null;
     }
@@ -2083,6 +2103,230 @@
   $('closeSettingsBtn').addEventListener('click', function () { if (settingsDialog.close) settingsDialog.close(); else settingsDialog.removeAttribute('open'); });
   settingsDialog.addEventListener('click', function (e) { if (e.target === settingsDialog) settingsDialog.close(); });
 
+  // ---------- work orders ----------
+  // An order = recipe x quantity. The active order decides which part Load part loads, and every part
+  // of that recipe is counted once, by its final result: a REJECT at Align counts as rejected (an
+  // override takes that back), otherwise the inspection result counts it as good or rejected.
+
+  var orders = []; // { id, recipe, qty, done, rejected, status: 'active' | 'queued' | 'done', created, finished }
+  var cycle = { orderId: null, counted: null }; // the part on the fixture now and how it has been counted
+
+  function activeOrder() { return orders.filter(function (o) { return o.status === 'active'; })[0] || null; }
+  function orderById(id) { return orders.filter(function (o) { return o.id === id; })[0] || null; }
+  function orderFitsPart(o) { return !!(o && preRunRecipe && preRunRecipe.rec.name === o.recipe); }
+  function saveOrders() { store.putSetting('orders', orders).catch(function (e) { console.error('Saving orders failed:', e); }); }
+  function newCycle() { cycle = { orderId: null, counted: null }; }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  function nextOrderNo() {
+    var d = new Date(), stem = 'WO-' + String(d.getFullYear()).slice(2) + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '-';
+    for (var n = 1; ; n++) if (!orderById(stem + pad2(n))) return stem + pad2(n);
+  }
+
+  /** Counts the current part as 'done' or 'rejected' (null: not counted), replacing an earlier count of the same part. */
+  function countCycle(outcome) {
+    var o = cycle.orderId ? orderById(cycle.orderId) : activeOrder();
+    if (!o) return;
+    if (!cycle.orderId) {
+      if (o.status !== 'active' || !orderFitsPart(o) || !outcome) return;
+      cycle.orderId = o.id;
+    }
+    if (cycle.counted === outcome) return;
+    if (cycle.counted) o[cycle.counted] = Math.max(0, o[cycle.counted] - 1);
+    if (outcome) o[outcome]++;
+    cycle.counted = outcome;
+    if (o.status === 'active' && o.done >= o.qty) { o.status = 'done'; o.finished = Date.now(); }
+    else if (o.status === 'done' && o.done < o.qty) { o.status = 'active'; o.finished = null; } // a re-inspection flipped the last part
+    saveOrders();
+    renderOrdersTable();
+    renderStepper();
+  }
+
+  function createOrder(id, recipe, qty) {
+    var o = { id: id, recipe: recipe, qty: qty, done: 0, rejected: 0, status: 'queued', created: Date.now(), finished: null };
+    orders.push(o);
+    saveOrders();
+    return o;
+  }
+
+  /** Makes o the active order and loads its recipe (unless quiet: the caller loads it). */
+  function startOrder(o, quiet) {
+    orders.forEach(function (x) { if (x.status === 'active') x.status = 'queued'; });
+    o.status = 'active';
+    newCycle();
+    saveOrders();
+    renderOrdersTable();
+    if (!quiet && recipes[o.recipe]) { loadPreRunRecipe(o.recipe); goStep(1, false, true); }
+    renderStepper();
+  }
+
+  function orderProgressHtml(o) {
+    return '<strong>' + escapeHtml(o.id) + '</strong><span>' + escapeHtml(o.recipe) + '</span>' +
+      '<span>' + t('order.good', { done: o.done, qty: o.qty }) + '</span>' +
+      '<span class="muted">' + t('order.rejected', { n: o.rejected }) + '</span>';
+  }
+
+  function renderOrderBar() {
+    var o = activeOrder(), info = $('orderInfo');
+    var recent = !o && orders.filter(function (x) { return x.status === 'done' && x.finished && Date.now() - x.finished < 30 * 60 * 1000; })
+      .sort(function (a, b) { return b.finished - a.finished; })[0];
+    var shown = o || recent;
+    if (!shown) {
+      info.innerHTML = '<span class="warn-text">' + t('order.none') + '</span>';
+    } else {
+      var extra = '';
+      if (shown.status === 'done') extra = '<span class="done-text">✓ ' + t('order.complete') + '</span>';
+      else if (preRunRecipe && !orderFitsPart(shown)) extra = '<span class="warn-text">⚠ ' + t('order.mismatch') + '</span>';
+      info.innerHTML = orderProgressHtml(shown) + extra;
+    }
+    $('orderProgressWrap').hidden = !shown;
+    if (shown) {
+      var total = shown.qty + shown.rejected;
+      $('orderBarGood').style.width = (100 * shown.done / total) + '%';
+      $('orderBarBad').style.width = (100 * shown.rejected / total) + '%';
+      $('orderProgress').setAttribute('aria-valuemax', shown.qty);
+      $('orderProgress').setAttribute('aria-valuenow', shown.done);
+      $('orderProgress').setAttribute('aria-label', t('order.good', { done: shown.done, qty: shown.qty }));
+    }
+    $('cellOrder').textContent = shown ? shown.id + ' · ' + t('order.good', { done: shown.done, qty: shown.qty }) : '';
+    if (cell) cell.setOrder(shown);
+    $('toggleCellBtn').textContent = t(cellHidden ? 'cell.show' : 'cell.hide');
+  }
+
+  var ordersDialog = $('ordersDialog');
+
+  function renderOrdersTable() {
+    var sel = $('orderRecipeSelect'), prev = sel.value, names = recipeNames();
+    sel.innerHTML = names.map(function (n) { return '<option>' + escapeHtml(n) + '</option>'; }).join('');
+    if (names.indexOf(prev) !== -1) sel.value = prev; else if (preRunRecipe) sel.value = preRunRecipe.rec.name;
+    var table = $('ordersTable');
+    if (!orders.length) { table.innerHTML = '<tr><td>' + t('order.empty') + '</td></tr>'; return; }
+    var rows = orders.slice().reverse().map(function (o) {
+      var actions = '';
+      if (o.status !== 'active' && o.status !== 'done') actions += '<button data-act="start" data-id="' + escapeHtml(o.id) + '" class="primary">' + t('order.start') + '</button>';
+      if (o.status === 'active') actions += '<button data-act="finish" data-id="' + escapeHtml(o.id) + '">' + t('order.finish') + '</button>';
+      actions += '<button data-act="delete" data-id="' + escapeHtml(o.id) + '" class="warn">' + t('order.delete') + '</button>';
+      return '<tr><td>' + escapeHtml(o.id) + '</td><td>' + escapeHtml(o.recipe) + '</td><td>' + o.qty + '</td><td>' + o.done + '</td><td>' + o.rejected +
+        '</td><td>' + verdictTagFor(o.status) + '</td><td><div class="btn-row">' + actions + '</div></td></tr>';
+    }).join('');
+    table.innerHTML = '<tr><th>' + t('order.no') + '</th><th>' + t('order.recipe') + '</th><th>' + t('order.qty') + '</th><th>' + t('order.colGood') + '</th><th>' +
+      t('order.colRejected') + '</th><th>' + t('order.colStatus') + '</th><th></th></tr>' + rows;
+  }
+
+  function verdictTagFor(status) {
+    var cls = status === 'done' ? 'pass' : status === 'active' ? 'warn' : '';
+    return '<span class="tag ' + cls + '">' + t('order.status_' + status) + '</span>';
+  }
+
+  $('ordersTable').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-act]');
+    if (!b) return;
+    var o = orderById(b.getAttribute('data-id'));
+    if (!o) return;
+    var act = b.getAttribute('data-act');
+    if (act === 'start') { startOrder(o); ordersDialog.close(); }
+    else if (act === 'finish') { o.status = 'done'; o.finished = Date.now(); saveOrders(); renderOrdersTable(); renderStepper(); }
+    else if (act === 'delete' && confirm(t('order.confirmDelete', { id: o.id }))) {
+      orders = orders.filter(function (x) { return x !== o; });
+      saveOrders(); renderOrdersTable(); renderStepper();
+    }
+  });
+
+  $('createOrderBtn').addEventListener('click', function () {
+    var id = $('orderNoInput').value.trim() || nextOrderNo();
+    var recipe = $('orderRecipeSelect').value, qty = Math.round(num($('orderQtyInput').value, 0));
+    if (!recipes[recipe]) { setStatus($('orderFormStatus'), 'order.errRecipe', null, 'err'); return; }
+    if (orderById(id)) { setStatus($('orderFormStatus'), 'order.errNo', { id: id }, 'err'); return; }
+    if (!(qty >= 1)) { setStatus($('orderFormStatus'), 'order.errQty', null, 'err'); return; }
+    startOrder(createOrder(id, recipe, qty));
+    setStatus($('orderFormStatus'), null);
+    ordersDialog.close();
+  });
+
+  $('openOrdersBtn').addEventListener('click', function () {
+    $('orderNoInput').value = nextOrderNo();
+    renderOrdersTable();
+    if (ordersDialog.showModal) ordersDialog.showModal(); else ordersDialog.setAttribute('open', '');
+  });
+  $('closeOrdersBtn').addEventListener('click', function () { ordersDialog.close(); });
+  ordersDialog.addEventListener('click', function (e) { if (e.target === ordersDialog) ordersDialog.close(); });
+
+  // ---------- live 3D cell ----------
+  // Mirrors the cell for the active order: the order's part, placed where the camera found it, the gantry
+  // gun following the corrected path during the spray simulation, the film it lays down, and the
+  // infeed / good / rejected stacks for the order's counts.
+
+  var CELL_KEY = 'ispCellHidden';
+  var cellHidden = false;
+  try { cellHidden = localStorage.getItem(CELL_KEY) === '1'; } catch (e) { }
+  var cell = window.ISDCell3D && window.ISDCell3D.create ? window.ISDCell3D.create($('cellView'), W, H) : null;
+  if (!cell) $('cellFallback').hidden = false;
+  $('livePanel').hidden = cellHidden;
+  if (cell) cell.setVisible(!cellHidden);
+  $('toggleCellBtn').addEventListener('click', function () {
+    cellHidden = !cellHidden;
+    try { localStorage.setItem(CELL_KEY, cellHidden ? '1' : '0'); } catch (e) { }
+    $('livePanel').hidden = cellHidden;
+    if (cell) cell.setVisible(!cellHidden);
+    renderOrderBar();
+  });
+
+  var cellKeys = {}, lastCellFilm = 0, cellFilmCanvas = null;
+
+  /** The part's pose on the fixture: the simulated true placement, else what the match measured, else as taught. */
+  function physicalPose() {
+    if (!preRunRecipe) return null;
+    var r = recipeRegions(preRunRecipe.rec)[0], c = r ? Core.rectCenter(r) : { x: CX, y: CY };
+    var T = groundTruth ? groundTruth.T : lastMatch ? lastMatch.res.T : null;
+    return T ? Core.rigidAbout(T, c) : { a: 1, b: 0, tx: 0, ty: 0 };
+  }
+
+  function updateCell() {
+    if (!cell) return;
+    var widthMm = preRunRecipe && preRunRecipe.rec.program ? preRunRecipe.rec.program.widthMm : 40;
+    var calKey = [station.mmPerPx, station.standoffMm, widthMm].join('|');
+    if (cellKeys.cal !== calKey) { cellKeys.cal = calKey; cell.setCalibration(station.mmPerPx, station.standoffMm, widthMm); }
+    var rec = preRunRecipe && preRunRecipe.rec;
+    var partKey = rec ? rec.name + '@' + rec.updated : '';
+    if (cellKeys.part !== partKey) {
+      cellKeys.part = partKey;
+      var holes = rec && rec.contours ? rec.contours.filter(function (c) { return c.isHole && c.parent === rec.primary; }).map(function (c) { return c.points; }) : [];
+      cell.setPart(rec ? rec.outline : null, holes);
+      cellKeys.pose = null;
+    }
+    var T = physicalPose(), poseKey = T ? [T.a, T.b, T.tx, T.ty].map(function (v) { return v.toFixed(4); }).join('|') : '';
+    if (cellKeys.pose !== poseKey) { cellKeys.pose = poseKey; cell.setPose(T); }
+    if (!applied) cell.setFilm(null);
+    var chip = $('cellState'), key;
+    if (simRunning) key = 'cell.spraying';
+    else if (!preRunRecipe) key = 'cell.idle';
+    else if (inspection && inspection.result) key = inspection.result.pass ? 'cell.inspectedPass' : 'cell.inspectedFail';
+    else if (applied && applied.done) key = 'cell.sprayed';
+    else if (applied) key = 'cell.aligned';
+    else if (lastMatch) key = 'cell.rejected';
+    else key = 'cell.loaded';
+    chip.textContent = t(key);
+    chip.className = 'cell-chip' + (simRunning ? ' spraying' : '');
+  }
+
+  /** Paint film for the 3D cell: the deposition grid in paint colour, laid over the camera's field of view. */
+  function updateCellFilm() {
+    if (!cell) return;
+    if (!applied || !applied.sampleIdx) { cell.setFilm(null); return; }
+    var g = applied.grid;
+    if (!cellFilmCanvas || cellFilmCanvas.width !== g.nx) cellFilmCanvas = makeCanvas(g.nx, g.ny);
+    var ctx = cellFilmCanvas.getContext('2d'), img = ctx.createImageData(g.nx, g.ny);
+    var nominal = applied.nominal || filmReference(), rgb = hexToRgb(simColorInput.value);
+    for (var i = 0; i < g.data.length; i++) {
+      var rel = g.data[i] / nominal;
+      if (rel <= 0.02) continue;
+      img.data[i * 4] = rgb[0]; img.data[i * 4 + 1] = rgb[1]; img.data[i * 4 + 2] = rgb[2];
+      img.data[i * 4 + 3] = Math.min(1, rel) * 230;
+    }
+    ctx.putImageData(img, 0, 0);
+    cell.setFilm(cellFilmCanvas);
+  }
+
   // ---------- one-click full demo ----------
 
   function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
@@ -2110,6 +2354,8 @@
     function done() { runDemoBtn.disabled = false; }
     saveCurrentRecipe(name, false).then(function (ok) {
       if (!ok) { done(); return; }
+      var ao = activeOrder();
+      if (!ao || ao.recipe !== name) startOrder(createOrder(nextOrderNo(), name, 5), true);
       wait(900).then(function () {
         goStep(1, false, true);
         lastSavedName = null;
@@ -2168,6 +2414,7 @@
     renderInspection();
     renderBench();
     renderLog();
+    renderOrdersTable();
     renderStepper();
   }
 
@@ -2196,7 +2443,8 @@
   wizardReady = true;
   goStep(0, true);
 
-  Promise.all([store.getSetting('station'), store.getAllRecipes(), store.getLog()]).then(function (r) {
+  Promise.all([store.getSetting('station'), store.getAllRecipes(), store.getLog(), store.getSetting('orders')]).then(function (r) {
+    orders = Array.isArray(r[3]) ? r[3] : [];
     if (r[0]) {
       var saved = r[0];
       Object.keys(saved).forEach(function (k) {
